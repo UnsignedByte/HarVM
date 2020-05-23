@@ -1,0 +1,23 @@
+{
+  "name": "harvm",
+  "version": "1.0.0",
+  "description": "HarVM shake",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UnsignedByte/HarVM.git"
+  },
+  "author": "UnsignedByte",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/UnsignedByte/HarVM/issues"
+  },
+  "homepage": "https://github.com/UnsignedByte/HarVM#readme",
+  "dependencies": {
+    "discord.js": "^12.2.0"
+  }
+}
