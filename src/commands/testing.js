@@ -1,13 +1,13 @@
-function random ({ msg }) {
-	msg.channel.send('4')
+function random ({ reply }) {
+	reply('4')
 }
 
-function args ({ args, msg }) {
-	msg.channel.send('```' + args + '```')
+function args ({ unparsedArgs, reply }) {
+	reply('```\n' + unparsedArgs + '\n```')
 }
 
-function main ({ msg }) {
-	msg.channel.send('Available commands: ' + Object.keys(module.exports))
+function main ({ reply }) {
+	reply('Available commands: ' + Object.keys(module.exports))
 }
 
 module.exports = { random, args, default: main }

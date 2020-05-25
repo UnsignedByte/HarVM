@@ -18,6 +18,11 @@ const commandParser = /^<@!?\d+>\s*(\w+)(?:\s+(\w+))?\s*/
 
 client.on('message', msg => {
 	if (!msg.author.bot && msg.mentions.has(client.user)) {
+		// We can make this fancier by making a standard embed response thing
+		function reply (message) {
+			msg.channel.send(`${msg.author}:\n\n${message}\n\nSincerely,\nTODO`)
+		}
+		
 		const match = msg.content.match(commandParser)
 		if (match) {
 			const [matched, commandName, subCommandName] = match
@@ -27,14 +32,16 @@ client.on('message', msg => {
 				if (subCommand) {
 					return subCommand({
 						client,
-						args: msg.content.slice(match.index + matched.length),
-						msg
+						unparsedArgs: msg.content.slice(match.index + matched.length),
+						msg,
+						reply
 					})
 				}
+			} else {
+				reply(`Unknown command \`${command}\``)
 			}
-			msg.reply('Do not know that command lol')
 		} else {
-			msg.reply('invalid syntax (but still will give help ig)')
+			reply(`I'm not sure what you mean. Make sure your message is in the following format:\n> ${client.user} <command> [subcommand] [...arguments]\nFor example,\n> ${client.user} testing`)
 		}
 	}
 })
