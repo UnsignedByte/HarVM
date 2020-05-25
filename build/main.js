@@ -81,58 +81,89 @@
 
   /*
   * @Author: UnsignedByte
+  * @Date:   00:19:36, 25-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 00:30:05, 25-May-2020
+  */
+
+  function main$1({ reply }){
+  	reply("lol, no");
+  }
+
+  var help = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    'default': main$1
+  });
+
+  /*
+  * @Author: UnsignedByte
   * @Date:   23:47:23, 24-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 23:59:25, 24-May-2020
+  * @Last Modified time: 00:31:50, 25-May-2020
   */
 
   var commands = /*#__PURE__*/Object.freeze({
     __proto__: null,
-    testing: testing
+    testing: testing,
+    help: help
   });
+
+  /*
+  * @Author: UnsignedByte
+  * @Date:   00:35:20, 25-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 00:36:36, 25-May-2020
+  */
+
+  function escapeRegex(string) {
+      return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
 
   const { Client } = Discord$1;
 
-  function main$1 (token) {
+  function main$2 (token) {
     // Create an instance of a Discord client
     const client = new Client();
 
-    client.prefix = localStorage.getItem('[HarVM] prefix');
+    client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'));
 
     client.on('ready', () => {
       console.log('ready');
     });
 
-    const commandParser = /^<@!?\d+>\s*(\w+)(?:\s+(\w+))?\s*/;
+    const commandParser = `^${client.prefix}(\w+)(?:\s+(\w+))?\s*`;
+
+    console.log(commandParser);
 
     client.on('message', async msg => {
-      if (!msg.author.bot && msg.mentions.has(client.user)) {
-      // We can make this fancier by making a standard embed response thing
-      function reply (message) {
-        msg.channel.send(`${msg.author}:\n\n${message}\n\nSincerely,\nTODO`);
-      }
-      
-      const match = msg.content.match(commandParser);
-      if (match) {
-        const [matched, commandName, subCommandName] = match;
-        const command = commands[commandName];
-        if (command) {
-          const subCommand = command[subCommandName] || command.default;
-          if (subCommand) {
-            return subCommand({
-              client,
-              unparsedArgs: msg.content.slice(match.index + matched.length),
-              msg,
-              reply
-            })
+      if (!msg.author.bot) {
+        // We can make this fancier by making a standard embed response thing
+        function reply (message, options={}) {
+          msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options);
+        }
+        
+        const match = msg.content.match(commandParser);
+        console.log(match);
+        if (match) {
+          const [matched, commandName, subCommandName] = match;
+          const command = commands[commandName];
+          if (command) {
+            const subCommand = command[subCommandName] || command.default;
+            if (subCommand) {
+              return subCommand({
+                client,
+                unparsedArgs: msg.content.slice(match.index + matched.length),
+                msg,
+                reply
+              })
+            }
+          } else {
+            reply(`Unknown command \`${command}\``);
           }
         } else {
-          reply(`Unknown command \`${command}\``);
+          reply(`I'm not sure what you mean. Make sure your message is in the following format:\n> ${client.prefix}<command> [subcommand] [...arguments]\nFor example,\n> ${client.prefix}help`);
         }
-      } else {
-        reply(`I'm not sure what you mean. Make sure your message is in the following format:\n> ${client.user} <command> [subcommand] [...arguments]\nFor example,\n> ${client.user} testing`);
       }
-    }
     });
 
     client.login(token);
@@ -188,7 +219,7 @@
   		autofocus: true,
   		onclick: () => {
   			empty(document.body);
-  			main$1(tokenInput.value, Discord).catch(() => {
+  			main$2(tokenInput.value, Discord).catch(() => {
   				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']));
   			});
   		}
