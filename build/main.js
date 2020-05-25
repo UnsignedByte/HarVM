@@ -69,7 +69,7 @@
   }
 
   function main ({ reply }) {
-  	reply('Available commands: ' + Object.keys(module.exports));
+  	reply('hi');
   }
 
   var testing = /*#__PURE__*/Object.freeze({

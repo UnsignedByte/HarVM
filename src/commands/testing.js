@@ -7,9 +7,8 @@ function args ({ unparsedArgs, reply }) {
 }
 
 function main ({ reply }) {
-	reply('Available commands: ' + Object.keys(module.exports))
+	reply('hi')
 }
-
 
 export { random, args }
 export default main
