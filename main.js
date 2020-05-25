@@ -1,0 +1,58 @@
+/*
+* @Author: UnsignedByte
+* @Date:   22:53:08, 24-May-2020
+* @Last Modified by:   UnsignedByte
+* @Last Modified time: 23:23:46, 24-May-2020
+*/
+import './_dom2.js'
+import main from "./client.js"
+
+localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/')
+
+const TOKEN_KEY = '[HarVM] token'
+const NO_STORE = 'please do not store token in localStorage thank'
+
+let token = localStorage.getItem('[HarVM] token')
+const tokenInput = Elem('input', {
+	type: 'text',
+	value: token === NO_STORE ? '' : token,
+	onchange: () => {
+    	if (!storeInput.checked) {
+    		localStorage.setItem(TOKEN_KEY, tokenInput.value)
+    	}
+    }
+})
+const storeInput = Elem('input', {
+	type: 'checkbox',
+	checked: token === NO_STORE,
+	onchange: () => {
+			if (storeInput.checked) {
+				localStorage.setItem(TOKEN_KEY, NO_STORE)
+			} else {
+				localStorage.setItem(TOKEN_KEY, tokenInput.value)
+			}
+		}
+	})
+	document.body.appendChild(Fragment([
+	Elem('p', {}, [
+		Elem('label', {}, [
+			'Token: ',
+			tokenInput
+		])
+	]),
+	Elem('p', {}, [
+		Elem('label', {}, [
+			storeInput,
+			'Do not store token in localStorage',
+		])
+	]),
+	Elem('button', {
+		autofocus: true,
+		onclick: () => {
+			empty(document.body)
+			main(tokenInput.value, Discord).catch(() => {
+				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']))
+			})
+		}
+	}, ['Start'])
+]))

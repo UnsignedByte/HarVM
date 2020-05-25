@@ -4,3 +4,5 @@ node_modules
 # Discord bot token
 token.json
 
+# DS Store binary
+*.DS_Store
