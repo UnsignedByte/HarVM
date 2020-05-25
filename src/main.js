@@ -2,9 +2,9 @@
 * @Author: UnsignedByte
 * @Date:   22:53:08, 24-May-2020
 * @Last Modified by:   UnsignedByte
-* @Last Modified time: 23:23:46, 24-May-2020
+* @Last Modified time: 23:52:35, 24-May-2020
 */
-import './_dom2.js'
+import './utils/_dom2.js'
 import main from "./client.js"
 
 localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/')

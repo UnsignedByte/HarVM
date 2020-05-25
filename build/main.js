@@ -60,9 +60,40 @@
 
   var Discord$1 = window.Discord;
 
+  function random ({ reply }) {
+  	reply('4');
+  }
+
+  function args ({ unparsedArgs, reply }) {
+  	reply('```\n' + unparsedArgs + '\n```');
+  }
+
+  function main ({ reply }) {
+  	reply('Available commands: ' + Object.keys(module.exports));
+  }
+
+  var testing = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    random: random,
+    args: args,
+    'default': main
+  });
+
+  /*
+  * @Author: UnsignedByte
+  * @Date:   23:47:23, 24-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 23:59:25, 24-May-2020
+  */
+
+  var commands = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    testing: testing
+  });
+
   const { Client } = Discord$1;
 
-  function main (token) {
+  function main$1 (token) {
     // Create an instance of a Discord client
     const client = new Client();
 
@@ -72,10 +103,36 @@
       console.log('ready');
     });
 
+    const commandParser = /^<@!?\d+>\s*(\w+)(?:\s+(\w+))?\s*/;
+
     client.on('message', async msg => {
-      if (msg.mentions.has(client.user)) {
-        return msg.reply(`try ${client.prefix}help`);
+      if (!msg.author.bot && msg.mentions.has(client.user)) {
+      // We can make this fancier by making a standard embed response thing
+      function reply (message) {
+        msg.channel.send(`${msg.author}:\n\n${message}\n\nSincerely,\nTODO`);
       }
+      
+      const match = msg.content.match(commandParser);
+      if (match) {
+        const [matched, commandName, subCommandName] = match;
+        const command = commands[commandName];
+        if (command) {
+          const subCommand = command[subCommandName] || command.default;
+          if (subCommand) {
+            return subCommand({
+              client,
+              unparsedArgs: msg.content.slice(match.index + matched.length),
+              msg,
+              reply
+            })
+          }
+        } else {
+          reply(`Unknown command \`${command}\``);
+        }
+      } else {
+        reply(`I'm not sure what you mean. Make sure your message is in the following format:\n> ${client.user} <command> [subcommand] [...arguments]\nFor example,\n> ${client.user} testing`);
+      }
+    }
     });
 
     client.login(token);
@@ -85,7 +142,7 @@
   * @Author: UnsignedByte
   * @Date:   22:53:08, 24-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 23:23:46, 24-May-2020
+  * @Last Modified time: 23:52:35, 24-May-2020
   */
 
   localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/');
@@ -131,7 +188,7 @@
   		autofocus: true,
   		onclick: () => {
   			empty(document.body);
-  			main(tokenInput.value, Discord).catch(() => {
+  			main$1(tokenInput.value, Discord).catch(() => {
   				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']));
   			});
   		}
