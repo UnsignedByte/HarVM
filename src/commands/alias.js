@@ -1,18 +1,22 @@
+import { simpleArgumentParser } from '../utils/parsers.js'
+
 export function list ({ aliasUtil: { aliases }, reply }) {
-	reply(Array.from(aliases.keys(), ([alias, command]) => {
+	reply(Array.from(aliases.entries(), ([alias, command]) => {
 		return `**\`${alias}\`**: \`${command}\``
-	}))
+	}).join('\n') || 'No aliases created yet.')
 }
 
-export function set ({ aliasUtil: { aliases, saveAliases }, reply }) {
-	reply('not done lol')
-	return
-
-	// NOTE: Psuedo code
+const parser = simpleArgumentParser({ main: '<aliasName> [command]' })
+export function set ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
+	const { aliasName, command } = parser.parse(unparsedArgs)
+	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
 	if (command) {
 		aliases.set(aliasName, command)
+		reply(`Alias \`${aliasName}\` created!`)
 	} else {
+		const oldCommand = aliases.get(aliasName)
 		aliases.delete(aliasName)
+		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`)
 	}
 	saveAliases()
 }
@@ -25,12 +29,12 @@ export default function help ({ reply }) {
 
 		**\`alias\`** - Brings up this help list
 		**\`alias list\`** - Lists all aliases and their commands
-		**\`alias set -a <alias name: symbol> -c <command: string>\`** - Creates a new alias that is substituted with the given command.
-		**\`alias set -a <alias name: symbol> -d\`** - Deletes specified alias
+		**\`alias set <alias name> <command>\`** - Creates a new alias that is substituted with the given command.
+		**\`alias set <alias name>\`** - Deletes specified alias
 		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
 
 		For example, you can do
-		> \`/alias set -a hi -c "user dm -m \\"Hello!\\" -2 "\`
+		> \`/alias set hi "user dm -m \\"Hello!\\" -2 "\`
 		to create an alias, then you can use the alias by doing
 		> \`/hi @Gamepro5\`
 		which is equivalent to

@@ -39,8 +39,8 @@ export default async function main (token) {
 		const match = command.match(commandParser)
 		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
 		const [matched, commandName, subCommandName] = match
-		const commandGroup = commands[commandName]
 		let commandFn, unparsedArgs
+		const commandGroup = commands[commandName]
 		if (commandGroup) {
 			// Not using `hasOwnProperty` because Rollup's module object has no prototype,
 			// but this also means that obj['toString'] etc won't be a problem anyways epic
@@ -55,12 +55,12 @@ export default async function main (token) {
 					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
 					: `This command requires a subcommand.`
 			}
-		} else if (aliases.has(command)) {
+		} else if (aliases.has(commandName)) {
 			// Another benefit of putting all this in `runCommand` is that we can
 			// recursively call
 			// BUG: This setup may have a vulnerability where setting an alias to
 			// itself will cause a maximum call size limit reached error
-			return await runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
+			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
 		} else {
 			return `Unknown command \`${command}\``
 		}
