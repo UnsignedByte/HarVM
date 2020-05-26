@@ -11,6 +11,7 @@ export default {
   output: {
     file: 'build/main.js',
     format: 'iife',
-    name: 'Bot'
+    name: 'Bot',
+		sourcemap: true
   }
 };

@@ -14,5 +14,5 @@ function main ({ reply }) {
 	reply('hi')
 }
 
-export { random, args, data}
+export { collect, args, data}
 export default main

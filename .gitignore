@@ -6,3 +6,6 @@ token.json
 
 # DS Store binary
 *.DS_Store
+
+# Source maps (I guess we can include it later? But the file looks fat to me lol)
+build/*.map
