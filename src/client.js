@@ -18,13 +18,13 @@ export default function main (token) {
 			localStorage.setItem('[HarVM] aliases', JSON.stringify([...aliases]))
 		}
 	}
-	
+
   client.on('ready', () => {
     console.log('ready')
   })
 
 	const commandParser = /^(\w+)(?:\s+(\w+))?/
-	
+
 	// TODO: We can make this fancier by making a standard embed response thing
 	function reply (msg, message, options={}) {
 		msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options)

@@ -7,7 +7,7 @@ export function list ({ aliasUtil, reply }) {
 export function set ({ aliasUtil, reply }) {
 	reply('not done lol')
 	return
-	
+
 	// NOTE: Psuedo code
 	if (command) {
 		aliasUtil.set(aliasName, command)
@@ -21,13 +21,13 @@ export default function help ({ reply }) {
 	reply(`
 		__**Aliases**__
 		Some commands might be rather long, verbose, repetitive, and redundantly wordy. These commands can let you define aliases for commands.
-		
+
 		**\`alias\`** - Brings up this help list
 		**\`alias list\`** - Lists all aliases and their commands
 		**\`alias set -a <alias name: symbol> -c <command: string>\`** - Creates a new alias that is substituted with the given command.
 		**\`alias set -a <alias name: symbol> -d\`** - Deletes specified alias
 		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
-		
+
 		For example, you can do
 		> \`/alias set -a hi -c "user dm -m \\"Hello!\\" -2 "\`
 		to create an alias, then you can use the alias by doing
