@@ -32,17 +32,20 @@ export default function main (token) {
 
 	// Allows for batch calling in the future
   async function runCommand (command, context) {
+		context.calls++
+		// We can check if the user has gone over their call limit here
 		const { msg } = context
 		const [matched, commandName, subCommandName] = match
 		const command = commands[commandName]
 		let commandFn, unparsedArgs
 		if (command) {
-			if (command[subCommandName]) {
+			// Using `hasOwnProperty` in case someone does `testing toString`, for example
+			if (command.hasOwnProperty(subCommandName)) {
 				subCommand = command[subCommandName]
-				unparsedArgs = msg.content.slice(match.index + matched.length).trim()
+				unparsedArgs = msg.content.slice(matched.length).trim()
 			} else if (command.default) {
 				subCommand = command.default
-				unparsedArgs = msg.content.slice(match.index + commandName.length).trim()
+				unparsedArgs = msg.content.slice(commandName.length).trim()
 			} else {
 				return subCommandName
 					? `Unknown subcommand \`${command} ${subCommandName}\``
@@ -51,9 +54,9 @@ export default function main (token) {
 		} else if (aliases.has(command)) {
 			// Another benefit of putting all this in `runCommand` is that we can
 			// recursively call
-			// BUG: This setup will have a vulnerability where setting an alias to
+			// BUG: This setup may have a vulnerability where setting an alias to
 			// itself will cause a maximum call size limit reached error
-			return runCommand(aliases.get(command), context)
+			return runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
 		} else {
 			return `Unknown command \`${command}\``
 		}
@@ -62,7 +65,9 @@ export default function main (token) {
 			unparsedArgs,
 			msg,
 			reply: (...args) => reply(msg, ...args)
-			aliasUtil
+			aliasUtil,
+			// Is this a good idea? lol
+			run: command => runCommand(command, context)
 		})
 		localStorage.setItem('[HarVM] data', JSON.stringify(client.data))
 		return error
@@ -71,7 +76,18 @@ export default function main (token) {
   client.on('message', async msg => {
     if (!msg.author.bot) {
       if (msg.content.startsWith(client.prefix)) {
-				const error = runCommand(msg.content.slice(client.prefix.length))
+				const error = runCommand(msg.content.slice(client.prefix.length), {
+					msg,
+					// `localData` is for storing variables in case we want to do that
+					// in the future, lol
+					// Using a map in case someone uses `__proto__` or something dumb
+					// as a variable name
+					localData: new Map(),
+					// Keep track of calls (in case it recurses); this way, we can "charge"
+					// people for how many commands they run to discourage complex
+					// computations
+					calls: 0
+				})
 				// TODO: Probably can make this more sophisticated by indicating that it should
 				// have a red stripe etc
         if (error) reply(msg, error)

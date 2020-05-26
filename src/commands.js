@@ -7,3 +7,5 @@
 
 export * as testing from './commands/testing.js'
 export * as help from './commands/help.js'
+export * as game from './commands/game.js'
+export * as alias from './commands/alias.js'
