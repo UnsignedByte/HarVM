@@ -1,3 +1,5 @@
+import { simpleArgumentParser } from '../utils/parsers.js'
+
 function collect ({ client, msg, reply }) {
 	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})))
 }
@@ -10,6 +12,18 @@ function args ({ unparsedArgs, reply }) {
 	reply('```\n' + unparsedArgs + '\n```')
 }
 
+const parser = simpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' })
+function simple ({ unparsedArgs, reply }) {
+	const args = parser.parse(unparsedArgs)
+	if (args) {
+		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
+	} else {
+		reply('Your arguments should be in the form ' + parser.syntax
+			.map(option => `\`${option}\``)
+			.join(' or '))
+	}
+}
+
 function get ({ client, unparsedArgs, reply }) {
 	reply('```\n' + JSON.stringify(client.data.get({args:unparsedArgs})) + '\n```')
 }
@@ -20,9 +34,9 @@ function set ({ client, unparsedArgs, reply }) {
 	reply('success')
 }
 
-function main ({ reply }) {
-	reply('hi')
+function main ({ reply, unparsedArgs }) {
+	reply('hi```\n' + unparsedArgs + '\n```')
 }
 
-export { collect, args, data, get, set}
+export { collect, args, data, get, set, simple }
 export default main

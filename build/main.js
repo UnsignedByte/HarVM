@@ -60,6 +60,84 @@
 
   var Discord$1 = window.Discord;
 
+  // Simple argument parser
+  // Syntax for `syntax`:
+  // - keyword
+  // - <required>
+  // - [optional]
+  // For example, simpleArgumentParser({ sheep: 'sheep <name> [colour]' })
+  // Will parse arguments as { type: 'sheep', name, colour? }
+  // Entries should from highest to lowest priority
+  // Returns null if no arguments can be parsed
+  function simpleArgumentParser (rawOptions) {
+  	const options = Object.entries(rawOptions).map(([name, option]) => {
+  		return {
+  			name,
+  			syntax: option.split(/\s+/).map(argument => {
+  				let match;
+  				match = argument.match(/^(\w+)$/);
+  				if (match) return { type: 'keyword', value: match[1] }
+  				match = argument.match(/^<(\w+)>$/);
+  				if (match) return { type: 'required', name: match[1] }
+  				match = argument.match(/^\[(\w+)\]$/);
+  				if (match) return { type: 'optional', name: match[1] }
+  				throw new Error(`Invalid syntax: ${argument} is neither <required>, [optional], nor a keyword`)
+  			})
+  		}
+  	});
+  	return {
+  		syntax: Object.values(rawOptions),
+  		parse: unparsedArgs => {
+  			// Unnecessarily complicated
+  			const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
+  				.map(match => match[0][0] === '"' ? JSON.parse(match[0]) : match[0]);
+  			// Omg an obscure JavaScript label
+  			mainLoop:
+  			for (const { name, syntax } of options) {
+  				const data = { type: name };
+  				let i = 0;
+  				for (let j = 0; j < syntax.length; j++) {
+  					const argument = syntax[j];
+  					if (i >= tokens.length) {
+  						if (argument.type === 'optional') {
+  							break
+  						} else {
+  							continue mainLoop
+  						}
+  					}
+  					switch (argument.type) {
+  						case 'keyword':
+  							if (tokens[i] === argument.value) {
+  								i++;
+  							} else {
+  								continue mainLoop
+  							}
+  							break
+  						case 'required':
+  							data[argument.name] = tokens[i];
+  							i++;
+  							break
+  						case 'optional':
+  							// Test for the special case such as when the rule is `[optional] keyword`
+  							// and the user gives "keyword"; it should match the keyword and skip
+  							// optional. However, "keyword keyword"'s first keyword should be
+  							// used for the optional
+  							if (!(syntax[j + 1] && syntax[j + 1].type === 'keyword' &&
+  								syntax[j + 1].value !== tokens[i + 1] && syntax[j + 1].value === tokens[i])) {
+  								data[argument.name] = tokens[i];
+  								i++;
+  							}
+  							break
+  					}
+  				}
+  				if (i < tokens.length) continue
+  				return data
+  			}
+  			return null
+  		}
+  	}
+  }
+
   function collect ({ client, msg, reply }) {
   	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})));
   }
@@ -72,6 +150,18 @@
   	reply('```\n' + unparsedArgs + '\n```');
   }
 
+  const parser = simpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' });
+  function simple ({ unparsedArgs, reply }) {
+  	const args = parser.parse(unparsedArgs);
+  	if (args) {
+  		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```');
+  	} else {
+  		reply('Your arguments should be in the form ' + parser.syntax
+  			.map(option => `\`${option}\``)
+  			.join(' or '));
+  	}
+  }
+
   function get ({ client, unparsedArgs, reply }) {
   	reply('```\n' + JSON.stringify(client.data.get({args:unparsedArgs})) + '\n```');
   }
@@ -82,8 +172,8 @@
   	reply('success');
   }
 
-  function main ({ reply }) {
-  	reply('hi');
+  function main ({ reply, unparsedArgs }) {
+  	reply('hi```\n' + unparsedArgs + '\n```');
   }
 
   var testing = /*#__PURE__*/Object.freeze({
@@ -93,6 +183,7 @@
     data: data,
     get: get,
     set: set,
+    simple: simple,
     'default': main
   });
 
@@ -114,6 +205,81 @@
 
   /*
   * @Author: UnsignedByte
+  * @Date:   11:36:59, 25-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 11:38:41, 25-May-2020
+  */
+
+  function random ({ reply }) {
+  	reply('4');
+  }
+
+  function args$1 ({ unparsedArgs, reply }) {
+  	reply('```\n' + unparsedArgs + '\n```');
+  }
+
+  function main$2 ({ client, reply }) {
+  	reply(`Try \`${client.prefix}help game\` to get a list of commands`);
+  }
+
+  var game = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    random: random,
+    args: args$1,
+    'default': main$2
+  });
+
+  function list ({ aliasUtil: { aliases }, reply }) {
+  	reply(Array.from(aliases.entries(), ([alias, command]) => {
+  		return `**\`${alias}\`**: \`${command}\``
+  	}).join('\n') || 'No aliases created yet.');
+  }
+
+  const parser$1 = simpleArgumentParser({ main: '<aliasName> [command]' });
+  function set$1 ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
+  	const { aliasName, command } = parser$1.parse(unparsedArgs);
+  	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
+  	if (command) {
+  		aliases.set(aliasName, command);
+  		reply(`Alias \`${aliasName}\` created!`);
+  	} else {
+  		const oldCommand = aliases.get(aliasName);
+  		aliases.delete(aliasName);
+  		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`);
+  	}
+  	saveAliases();
+  }
+
+  function help$1 ({ reply }) {
+  	// I would like a cool helper function that can generate cool formatting for help, but this'll do.
+  	reply(`
+		__**Aliases**__
+		Some commands might be rather long, verbose, repetitive, and redundantly wordy. These commands can let you define aliases for commands.
+
+		**\`alias\`** - Brings up this help list
+		**\`alias list\`** - Lists all aliases and their commands
+		**\`alias set <alias name> <command>\`** - Creates a new alias that is substituted with the given command.
+		**\`alias set <alias name>\`** - Deletes specified alias
+		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
+
+		For example, you can do
+		> \`/alias set hi "user dm -m \\"Hello!\\" -2 "\`
+		to create an alias, then you can use the alias by doing
+		> \`/hi @Gamepro5\`
+		which is equivalent to
+		> \`/user dm -m "Hello!" -2 @Gamepro5\`
+	`);
+  }
+
+  var alias = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    list: list,
+    set: set$1,
+    'default': help$1
+  });
+
+  /*
+  * @Author: UnsignedByte
   * @Date:   23:47:23, 24-May-2020
   * @Last Modified by:   UnsignedByte
   * @Last Modified time: 00:31:50, 25-May-2020
@@ -122,25 +288,16 @@
   var commands = /*#__PURE__*/Object.freeze({
     __proto__: null,
     testing: testing,
-    help: help
+    help: help,
+    game: game,
+    alias: alias
   });
-
-  /*
-  * @Author: UnsignedByte
-  * @Date:   00:35:20, 25-May-2020
-  * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 00:36:36, 25-May-2020
-  */
-
-  function escapeRegex(string) {
-      return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  }
 
   /*
   * @Author: UnsignedByte
   * @Date:   11:56:39, 25-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 00:45:05, 26-May-2020
+  * @Last Modified time: 00:48:46, 26-May-2020
   */
 
   class DataManager {
@@ -154,58 +311,111 @@
   	} 
 
   	get({def, args}, raw=this.raw){
-  		this.#save();
   		def = {} || def;
   		return (args.length===0 && raw) || this.get({ def, args:args.slice(1) }, (args[0] in raw && args[0]) || (raw[args[0]] = def))
   	}
 
   	set({def, args}, value){
+  		this.#save();
   		this.get({def, args:args.slice(0, args.length-1)})[args[args.length-1]] = value;
   	}
   }
 
   const { Client } = Discord$1;
 
-  function main$2 (token) {
+  async function main$3 (token) {
     // Create an instance of a Discord client
     const client = new Client();
 
-    client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'));
+    client.prefix = localStorage.getItem('[HarVM] prefix');
     client.data = new DataManager(JSON.parse(localStorage.getItem('[HarVM] data'))||{});
+
+  	const aliases = new Map(JSON.parse(localStorage.getItem('[HarVM] aliases')) || []);
+  	const aliasUtil = {
+  		aliases,
+  		saveAliases () {
+  			localStorage.setItem('[HarVM] aliases', JSON.stringify([...aliases]));
+  		}
+  	};
 
     client.on('ready', () => {
       console.log('ready');
     });
 
-    const commandParser = new RegExp(`^${client.prefix}(\\w+)(?:\\s+(\\w+))?\\s*`);
+  	const commandParser = /^(\w+)(?:\s+(\w+))?/;
 
-    console.log(commandParser);
+  	// TODO: We can make this fancier by making a standard embed response thing
+  	function reply (msg, message, options={}) {
+  		msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options);
+  	}
+
+  	// Allows for batch calling in the future
+    async function runCommand (command, context) {
+  		context.calls++;
+  		// We can check if the user has gone over their call limit here
+  		const { msg } = context;
+  		const match = command.match(commandParser);
+  		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
+  		const [matched, commandName, subCommandName] = match;
+  		let commandFn, unparsedArgs;
+  		const commandGroup = commands[commandName];
+  		if (commandGroup) {
+  			// Not using `hasOwnProperty` because Rollup's module object has no prototype,
+  			// but this also means that obj['toString'] etc won't be a problem anyways epic
+  			if (commandGroup[subCommandName]) {
+  				commandFn = commandGroup[subCommandName];
+  				unparsedArgs = command.slice(matched.length).trim();
+  			} else if (commandGroup.default) {
+  				commandFn = commandGroup.default;
+  				unparsedArgs = command.slice(commandName.length).trim();
+  			} else {
+  				return subCommandName
+  					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
+  					: `This command requires a subcommand.`
+  			}
+  		} else if (aliases.has(commandName)) {
+  			// Another benefit of putting all this in `runCommand` is that we can
+  			// recursively call
+  			// BUG: This setup may have a vulnerability where setting an alias to
+  			// itself will cause a maximum call size limit reached error
+  			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
+  		} else {
+  			return `Unknown command \`${command}\``
+  		}
+  		// Commands can return a string for an error message I guess
+  		return await commandFn({
+  			client,
+  			unparsedArgs,
+  			msg,
+  			reply: (...args) => reply(msg, ...args),
+  			aliasUtil,
+  			// Is this a good idea? lol
+  			run: command => runCommand(command, context)
+  		})
+    }
 
     client.on('message', async msg => {
       if (!msg.author.bot) {
-        // We can make this fancier by making a standard embed response thing
-        function reply (message, options={}) {
-          msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options);
-        }
-        
-        const match = msg.content.match(commandParser);
-        console.log(match);
-        if (match) {
-          const [matched, commandName, subCommandName] = match;
-          const command = commands[commandName];
-          if (command) {
-            const subCommand = command[subCommandName] || command.default;
-            if (subCommand) {
-              return subCommand({
-                client,
-                unparsedArgs: msg.content.slice(match.index + matched.length),
-                msg,
-                reply
-              })
-            }
-          } else {
-            reply(`Unknown command \`${command}\``);
-          }
+        if (msg.content.startsWith(client.prefix)) {
+  				const error = await runCommand(msg.content.slice(client.prefix.length), {
+  					msg,
+  					// `temp` is for storing variables in case we want to do that
+  					// in the future, lol
+  					// Using a map in case someone uses `__proto__` or something dumb
+  					// as a variable name
+  					temp: new Map(),
+  					// Keep track of calls (in case it recurses); this way, we can "charge"
+  					// people for how many commands they run to discourage complex
+  					// computations
+  					calls: 0
+  				})
+  					.catch(err => {
+  						// If there's a runtime error I guess we can also report it
+  						return err.stack
+  					});
+  				// TODO: Probably can make this more sophisticated by indicating that it should
+  				// have a red stripe etc
+          if (error) reply(msg, error);
         }
       }
     });
@@ -263,7 +473,7 @@
   		autofocus: true,
   		onclick: () => {
   			empty(document.body);
-  			main$2(tokenInput.value, Discord).catch(() => {
+  			main$3(tokenInput.value, Discord).catch(() => {
   				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']));
   			});
   		}
