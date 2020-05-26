@@ -46,10 +46,10 @@ export default async function main (token) {
 			// but this also means that obj['toString'] etc won't be a problem anyways epic
 			if (commandGroup[subCommandName]) {
 				commandFn = commandGroup[subCommandName]
-				unparsedArgs = msg.content.slice(matched.length).trim()
+				unparsedArgs = command.slice(matched.length).trim()
 			} else if (commandGroup.default) {
 				commandFn = commandGroup.default
-				unparsedArgs = msg.content.slice(commandName.length).trim()
+				unparsedArgs = command.slice(commandName.length).trim()
 			} else {
 				return subCommandName
 					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
@@ -64,7 +64,8 @@ export default async function main (token) {
 		} else {
 			return `Unknown command \`${command}\``
 		}
-		const error = await commandFn({
+		// Commands can return a string for an error message I guess
+		return await commandFn({
 			client,
 			unparsedArgs,
 			msg,
@@ -73,7 +74,6 @@ export default async function main (token) {
 			// Is this a good idea? lol
 			run: command => runCommand(command, context)
 		})
-		return error
   }
 
   client.on('message', async msg => {
@@ -91,6 +91,10 @@ export default async function main (token) {
 					// computations
 					calls: 0
 				})
+					.catch(err => {
+						// If there's a runtime error I guess we can also report it
+						return err.stack
+					})
 				// TODO: Probably can make this more sophisticated by indicating that it should
 				// have a red stripe etc
         if (error) reply(msg, error)
