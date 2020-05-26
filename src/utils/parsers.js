@@ -29,39 +29,48 @@ export function simpleArgumentParser (rawOptions) {
 			// Unnecessarily complicated
 			const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
 				.map(match => match[0][0] === '"' ? JSON.parse(match[0]) : match[0])
+			// Omg an obscure JavaScript label
+			mainLoop:
 			for (const { name, syntax } of options) {
 				const data = { type: name }
 				let success = true
 				let i = 0
-				for (const argument of syntax) {
+				for (let j = 0; j < syntax.length; j++) {
+					const argument = syntax[j]
+					if (i >= tokens.length) {
+						if (argument.type === 'optional') {
+							break
+						} else {
+							continue mainLoop
+						}
+					}
 					switch (argument.type) {
 						case 'keyword':
-							if (i < tokens.length && tokens[i] === argument.value) {
+							if (tokens[i] === argument.value) {
 								i++
 							} else {
-								success = false
+								continue mainLoop
 							}
 							break
 						case 'required':
-							if (i < tokens.length) {
-								data[argument.name] = tokens[i]
-								i++
-							} else {
-								success = false
-							}
+							data[argument.name] = tokens[i]
+							i++
 							break
 						case 'optional':
-							if (i < tokens.length) {
+							// Test for the special case such as when the rule is `[optional] keyword`
+							// and the user gives "keyword"; it should match the keyword and skip
+							// optional. However, "keyword keyword"'s first keyword should be
+							// used for the optional
+							if (!(syntax[j + 1] && syntax[j + 1].type === 'keyword' &&
+								syntax[j + 1].value !== tokens[i + 1] && syntax[j + 1].value === tokens[i])) {
 								data[argument.name] = tokens[i]
 								i++
 							}
 							break
 					}
-					if (!success) break
 				}
-				if (success && i === tokens.length) {
-					return data
-				}
+				if (i < tokens.length) continue
+				return data
 			}
 			return null
 		}
