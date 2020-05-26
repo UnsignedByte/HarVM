@@ -230,14 +230,24 @@
   });
 
   function list ({ aliasUtil: { aliases }, reply }) {
-  	reply(Array.from(aliases.keys(), ([alias, command]) => {
+  	reply(Array.from(aliases.entries(), ([alias, command]) => {
   		return `**\`${alias}\`**: \`${command}\``
-  	}));
+  	}).join('\n') || 'No aliases created yet.');
   }
 
-  function set$1 ({ aliasUtil: { aliases, saveAliases }, reply }) {
-  	reply('not done lol');
-  	return
+  const parser$1 = simpleArgumentParser({ main: '<aliasName> [command]' });
+  function set$1 ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
+  	const { aliasName, command } = parser$1.parse(unparsedArgs);
+  	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
+  	if (command) {
+  		aliases.set(aliasName, command);
+  		reply(`Alias \`${aliasName}\` created!`);
+  	} else {
+  		const oldCommand = aliases.get(aliasName);
+  		aliases.delete(aliasName);
+  		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`);
+  	}
+  	saveAliases();
   }
 
   function help$1 ({ reply }) {
@@ -248,12 +258,12 @@
 
 		**\`alias\`** - Brings up this help list
 		**\`alias list\`** - Lists all aliases and their commands
-		**\`alias set -a <alias name: symbol> -c <command: string>\`** - Creates a new alias that is substituted with the given command.
-		**\`alias set -a <alias name: symbol> -d\`** - Deletes specified alias
+		**\`alias set <alias name> <command>\`** - Creates a new alias that is substituted with the given command.
+		**\`alias set <alias name>\`** - Deletes specified alias
 		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
 
 		For example, you can do
-		> \`/alias set -a hi -c "user dm -m \\"Hello!\\" -2 "\`
+		> \`/alias set hi "user dm -m \\"Hello!\\" -2 "\`
 		to create an alias, then you can use the alias by doing
 		> \`/hi @Gamepro5\`
 		which is equivalent to
@@ -347,8 +357,8 @@
   		const match = command.match(commandParser);
   		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
   		const [matched, commandName, subCommandName] = match;
-  		const commandGroup = commands[commandName];
   		let commandFn, unparsedArgs;
+  		const commandGroup = commands[commandName];
   		if (commandGroup) {
   			// Not using `hasOwnProperty` because Rollup's module object has no prototype,
   			// but this also means that obj['toString'] etc won't be a problem anyways epic
@@ -363,12 +373,12 @@
   					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
   					: `This command requires a subcommand.`
   			}
-  		} else if (aliases.has(command)) {
+  		} else if (aliases.has(commandName)) {
   			// Another benefit of putting all this in `runCommand` is that we can
   			// recursively call
   			// BUG: This setup may have a vulnerability where setting an alias to
   			// itself will cause a maximum call size limit reached error
-  			return await runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
+  			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
   		} else {
   			return `Unknown command \`${command}\``
   		}
