@@ -78,11 +78,11 @@ export default function main (token) {
       if (msg.content.startsWith(client.prefix)) {
 				const error = runCommand(msg.content.slice(client.prefix.length), {
 					msg,
-					// `localData` is for storing variables in case we want to do that
+					// `temp` is for storing variables in case we want to do that
 					// in the future, lol
 					// Using a map in case someone uses `__proto__` or something dumb
 					// as a variable name
-					localData: new Map(),
+					temp: new Map(),
 					// Keep track of calls (in case it recurses); this way, we can "charge"
 					// people for how many commands they run to discourage complex
 					// computations
