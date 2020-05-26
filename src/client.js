@@ -10,7 +10,7 @@ export default function main (token) {
   const client = new Client()
 
   client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'))
-  client.data = {}||JSON.parse(localStorage.getItem('[HarVM] data'))
+  client.data = JSON.parse(localStorage.getItem('[HarVM] data')) || {}
 
   client.on('ready', () => {
     console.log('ready')
@@ -35,7 +35,7 @@ export default function main (token) {
         if (command) {
           const subCommand = command[subCommandName] || command.default
           if (subCommand) {
-            return subCommand({
+            subCommand({
               client,
               unparsedArgs: msg.content.slice(match.index + matched.length),
               msg,
