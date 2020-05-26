@@ -1,6 +1,7 @@
 import Discord from "../discord/discord.js"
 
 import * as commands from './commands.js'
+import DataManager from './utils/data_manager.js'
 
 const { Client } = Discord
 
@@ -9,7 +10,7 @@ export default async function main (token) {
   const client = new Client()
 
   client.prefix = localStorage.getItem('[HarVM] prefix')
-  client.data = JSON.parse(localStorage.getItem('[HarVM] data')) || {}
+  client.data = new DataManager(JSON.parse(localStorage.getItem('[HarVM] data'))||{})
 
 	const aliases = new Map(JSON.parse(localStorage.getItem('[HarVM] aliases')) || [])
 	const aliasUtil = {
@@ -72,7 +73,6 @@ export default async function main (token) {
 			// Is this a good idea? lol
 			run: command => runCommand(command, context)
 		})
-		localStorage.setItem('[HarVM] data', JSON.stringify(client.data))
 		return error
   }
 
