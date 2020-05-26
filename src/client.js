@@ -2,6 +2,7 @@ import Discord from "../discord/discord.js"
 
 import * as commands from './commands.js'
 import { escapeRegex } from './utils/str.js'
+import DataManager from './utils/data_manager.js'
 
 const { Client } = Discord
 
@@ -10,7 +11,7 @@ export default function main (token) {
   const client = new Client()
 
   client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'))
-  client.data = {}||JSON.parse(localStorage.getItem('[HarVM] data'))
+  client.data = new DataManager(JSON.parse(localStorage.getItem('[HarVM] data'))||{})
 
   client.on('ready', () => {
     console.log('ready')
@@ -41,7 +42,6 @@ export default function main (token) {
               msg,
               reply
             })
-            localStorage.setItem('[HarVM] data', JSON.stringify(client.data))
           }
         } else {
           reply(`Unknown command \`${command}\``)
