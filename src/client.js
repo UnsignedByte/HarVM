@@ -4,7 +4,7 @@ import * as commands from './commands.js'
 
 const { Client } = Discord
 
-export default function main (token) {
+export default async function main (token) {
   // Create an instance of a Discord client
   const client = new Client()
 
@@ -35,20 +35,23 @@ export default function main (token) {
 		context.calls++
 		// We can check if the user has gone over their call limit here
 		const { msg } = context
+		const match = command.match(commandParser)
+		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
 		const [matched, commandName, subCommandName] = match
-		const command = commands[commandName]
+		const commandGroup = commands[commandName]
 		let commandFn, unparsedArgs
-		if (command) {
-			// Using `hasOwnProperty` in case someone does `testing toString`, for example
-			if (command.hasOwnProperty(subCommandName)) {
-				subCommand = command[subCommandName]
+		if (commandGroup) {
+			// Not using `hasOwnProperty` because Rollup's module object has no prototype,
+			// but this also means that obj['toString'] etc won't be a problem anyways epic
+			if (commandGroup[subCommandName]) {
+				commandFn = commandGroup[subCommandName]
 				unparsedArgs = msg.content.slice(matched.length).trim()
-			} else if (command.default) {
-				subCommand = command.default
+			} else if (commandGroup.default) {
+				commandFn = commandGroup.default
 				unparsedArgs = msg.content.slice(commandName.length).trim()
 			} else {
 				return subCommandName
-					? `Unknown subcommand \`${command} ${subCommandName}\``
+					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
 					: `This command requires a subcommand.`
 			}
 		} else if (aliases.has(command)) {
@@ -56,15 +59,15 @@ export default function main (token) {
 			// recursively call
 			// BUG: This setup may have a vulnerability where setting an alias to
 			// itself will cause a maximum call size limit reached error
-			return runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
+			return await runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
 		} else {
 			return `Unknown command \`${command}\``
 		}
-		const error = commandFn({
+		const error = await commandFn({
 			client,
 			unparsedArgs,
 			msg,
-			reply: (...args) => reply(msg, ...args)
+			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
 			// Is this a good idea? lol
 			run: command => runCommand(command, context)
@@ -76,7 +79,7 @@ export default function main (token) {
   client.on('message', async msg => {
     if (!msg.author.bot) {
       if (msg.content.startsWith(client.prefix)) {
-				const error = runCommand(msg.content.slice(client.prefix.length), {
+				const error = await runCommand(msg.content.slice(client.prefix.length), {
 					msg,
 					// `temp` is for storing variables in case we want to do that
 					// in the future, lol

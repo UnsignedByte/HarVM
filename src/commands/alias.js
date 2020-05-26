@@ -1,19 +1,20 @@
-export function list ({ aliasUtil, reply }) {
-	reply(Array.from(aliasUtil.keys(), ([alias, command]) => {
+export function list ({ aliasUtil: { aliases }, reply }) {
+	reply(Array.from(aliases.keys(), ([alias, command]) => {
 		return `**\`${alias}\`**: \`${command}\``
 	}))
 }
 
-export function set ({ aliasUtil, reply }) {
+export function set ({ aliasUtil: { aliases, saveAliases }, reply }) {
 	reply('not done lol')
 	return
 
 	// NOTE: Psuedo code
 	if (command) {
-		aliasUtil.set(aliasName, command)
+		aliases.set(aliasName, command)
 	} else {
-		aliasUtil.delete(aliasName)
+		aliases.delete(aliasName)
 	}
+	saveAliases()
 }
 
 export default function help ({ reply }) {

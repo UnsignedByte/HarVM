@@ -102,6 +102,71 @@
 
   /*
   * @Author: UnsignedByte
+  * @Date:   11:36:59, 25-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 11:38:41, 25-May-2020
+  */
+
+  function random ({ reply }) {
+  	reply('4');
+  }
+
+  function args$1 ({ unparsedArgs, reply }) {
+  	reply('```\n' + unparsedArgs + '\n```');
+  }
+
+  function main$2 ({ client, reply }) {
+  	reply(`Try \`${client.prefix}help game\` to get a list of commands`);
+  }
+
+  var game = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    random: random,
+    args: args$1,
+    'default': main$2
+  });
+
+  function list ({ aliasUtil: { aliases }, reply }) {
+  	reply(Array.from(aliases.keys(), ([alias, command]) => {
+  		return `**\`${alias}\`**: \`${command}\``
+  	}));
+  }
+
+  function set ({ aliasUtil: { aliases, saveAliases }, reply }) {
+  	reply('not done lol');
+  	return
+  }
+
+  function help$1 ({ reply }) {
+  	// I would like a cool helper function that can generate cool formatting for help, but this'll do.
+  	reply(`
+		__**Aliases**__
+		Some commands might be rather long, verbose, repetitive, and redundantly wordy. These commands can let you define aliases for commands.
+
+		**\`alias\`** - Brings up this help list
+		**\`alias list\`** - Lists all aliases and their commands
+		**\`alias set -a <alias name: symbol> -c <command: string>\`** - Creates a new alias that is substituted with the given command.
+		**\`alias set -a <alias name: symbol> -d\`** - Deletes specified alias
+		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
+
+		For example, you can do
+		> \`/alias set -a hi -c "user dm -m \\"Hello!\\" -2 "\`
+		to create an alias, then you can use the alias by doing
+		> \`/hi @Gamepro5\`
+		which is equivalent to
+		> \`/user dm -m "Hello!" -2 @Gamepro5\`
+	`);
+  }
+
+  var alias = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    list: list,
+    set: set,
+    'default': help$1
+  });
+
+  /*
+  * @Author: UnsignedByte
   * @Date:   23:47:23, 24-May-2020
   * @Last Modified by:   UnsignedByte
   * @Last Modified time: 00:31:50, 25-May-2020
@@ -110,62 +175,103 @@
   var commands = /*#__PURE__*/Object.freeze({
     __proto__: null,
     testing: testing,
-    help: help
+    help: help,
+    game: game,
+    alias: alias
   });
-
-  /*
-  * @Author: UnsignedByte
-  * @Date:   00:35:20, 25-May-2020
-  * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 00:36:36, 25-May-2020
-  */
-
-  function escapeRegex(string) {
-      return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  }
 
   const { Client } = Discord$1;
 
-  function main$2 (token) {
+  async function main$3 (token) {
     // Create an instance of a Discord client
     const client = new Client();
 
-    client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'));
-    client.data = {}||JSON.parse(localStorage.getItem('[HarVM] data'));
+    client.prefix = localStorage.getItem('[HarVM] prefix');
+    client.data = JSON.parse(localStorage.getItem('[HarVM] data')) || {};
+
+  	const aliases = new Map(JSON.parse(localStorage.getItem('[HarVM] aliases')) || []);
+  	const aliasUtil = {
+  		aliases,
+  		saveAliases () {
+  			localStorage.setItem('[HarVM] aliases', JSON.stringify([...aliases]));
+  		}
+  	};
 
     client.on('ready', () => {
       console.log('ready');
     });
 
-    const commandParser = new RegExp(`^${client.prefix}(\\w+)(?:\\s+(\\w+))?\\s*`);
+  	const commandParser = /^(\w+)(?:\s+(\w+))?/;
 
-    console.log(commandParser);
+  	// TODO: We can make this fancier by making a standard embed response thing
+  	function reply (msg, message, options={}) {
+  		msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options);
+  	}
+
+  	// Allows for batch calling in the future
+    async function runCommand (command, context) {
+  		context.calls++;
+  		// We can check if the user has gone over their call limit here
+  		const { msg } = context;
+  		const match = command.match(commandParser);
+  		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
+  		const [matched, commandName, subCommandName] = match;
+  		const commandGroup = commands[commandName];
+  		let commandFn, unparsedArgs;
+  		if (commandGroup) {
+  			// Not using `hasOwnProperty` because Rollup's module object has no prototype,
+  			// but this also means that obj['toString'] etc won't be a problem anyways epic
+  			if (commandGroup[subCommandName]) {
+  				commandFn = commandGroup[subCommandName];
+  				unparsedArgs = msg.content.slice(matched.length).trim();
+  			} else if (commandGroup.default) {
+  				commandFn = commandGroup.default;
+  				unparsedArgs = msg.content.slice(commandName.length).trim();
+  			} else {
+  				return subCommandName
+  					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
+  					: `This command requires a subcommand.`
+  			}
+  		} else if (aliases.has(command)) {
+  			// Another benefit of putting all this in `runCommand` is that we can
+  			// recursively call
+  			// BUG: This setup may have a vulnerability where setting an alias to
+  			// itself will cause a maximum call size limit reached error
+  			return await runCommand(aliases.get(command) + msg.content.slice(commandName.length), context)
+  		} else {
+  			return `Unknown command \`${command}\``
+  		}
+  		const error = await commandFn({
+  			client,
+  			unparsedArgs,
+  			msg,
+  			reply: (...args) => reply(msg, ...args),
+  			aliasUtil,
+  			// Is this a good idea? lol
+  			run: command => runCommand(command, context)
+  		});
+  		localStorage.setItem('[HarVM] data', JSON.stringify(client.data));
+  		return error
+    }
 
     client.on('message', async msg => {
       if (!msg.author.bot) {
-        // We can make this fancier by making a standard embed response thing
-        function reply (message, options={}) {
-          msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options);
-        }
-        
-        const match = msg.content.match(commandParser);
-        console.log(match);
-        if (match) {
-          const [matched, commandName, subCommandName] = match;
-          const command = commands[commandName];
-          if (command) {
-            const subCommand = command[subCommandName] || command.default;
-            if (subCommand) {
-              return subCommand({
-                client,
-                unparsedArgs: msg.content.slice(match.index + matched.length),
-                msg,
-                reply
-              })
-            }
-          } else {
-            reply(`Unknown command \`${command}\``);
-          }
+        if (msg.content.startsWith(client.prefix)) {
+  				const error = await runCommand(msg.content.slice(client.prefix.length), {
+  					msg,
+  					// `temp` is for storing variables in case we want to do that
+  					// in the future, lol
+  					// Using a map in case someone uses `__proto__` or something dumb
+  					// as a variable name
+  					temp: new Map(),
+  					// Keep track of calls (in case it recurses); this way, we can "charge"
+  					// people for how many commands they run to discourage complex
+  					// computations
+  					calls: 0
+  				});
+  				// TODO: Probably can make this more sophisticated by indicating that it should
+  				// have a red stripe etc
+          if (error) reply(msg, error);
         }
       }
     });
@@ -223,7 +329,7 @@
   		autofocus: true,
   		onclick: () => {
   			empty(document.body);
-  			main$2(tokenInput.value, Discord).catch(() => {
+  			main$3(tokenInput.value, Discord).catch(() => {
   				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']));
   			});
   		}
