@@ -1,5 +1,9 @@
-function random ({ reply }) {
-	reply('4')
+function collect ({ client, msg, reply }) {
+	client.data.user[msg.author.id]
+}
+
+function data ({ client, reply }) {
+	reply('```\n' + JSON.stringify(client.data) + '\n```')
 }
 
 function args ({ unparsedArgs, reply }) {
@@ -10,5 +14,5 @@ function main ({ reply }) {
 	reply('hi')
 }
 
-export { random, args }
+export { random, args, data}
 export default main

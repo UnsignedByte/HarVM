@@ -10,12 +10,13 @@ export default function main (token) {
   const client = new Client()
 
   client.prefix = escapeRegex(localStorage.getItem('[HarVM] prefix'))
+  client.data = {}||JSON.parse(localStorage.getItem('[HarVM] data'))
 
   client.on('ready', () => {
     console.log('ready')
   })
 
-  const commandParser = `^${client.prefix}(\w+)(?:\s+(\w+))?\s*`
+  const commandParser = new RegExp(`^${client.prefix}(\\w+)(?:\\s+(\\w+))?\\s*`)
 
   console.log(commandParser);
 
@@ -40,12 +41,11 @@ export default function main (token) {
               msg,
               reply
             })
+            localStorage.setItem('[HarVM] data', JSON.stringify(client.data))
           }
         } else {
           reply(`Unknown command \`${command}\``)
         }
-      } else {
-        reply(`I'm not sure what you mean. Make sure your message is in the following format:\n> ${client.prefix}<command> [subcommand] [...arguments]\nFor example,\n> ${client.prefix}help`)
       }
     }
   })
