@@ -9,7 +9,7 @@ import { isWhitespace } from './str.js'
 // Will parse arguments as { type: 'sheep', name, colour? }
 // Entries should from highest to lowest priority
 // Returns null if no arguments can be parsed
-export function simpleArgumentParser (rawOptions) {
+function simpleArgumentParser (rawOptions) {
 	const options = Object.entries(rawOptions).map(([name, option]) => {
 		return {
 			name,
@@ -26,7 +26,7 @@ export function simpleArgumentParser (rawOptions) {
 		}
 	})
 	return {
-		syntax: Object.values(rawOptions),
+		toString: () => Object.values(rawOptions),
 		parse: unparsedArgs => {
 			// Unnecessarily complicated
 			const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
@@ -82,7 +82,7 @@ export function simpleArgumentParser (rawOptions) {
 // Can parse something like
 // parseBashlike('happy -car cool', ['r'])
 // into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
-function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
+function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	const options = { '...': [] }
 	let optionType = null // 'single' | 'double' | 'rest' | null
 	let inString = null // '"' | '\'' | null
@@ -130,7 +130,7 @@ function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
 		} else if (optionType === null) {
 			if (char === '-') {
 				if (currentToken) throw new SyntaxError('Required space before option.')
-				if (expectValueNext) throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 				optionType = 'single'
 			} else if (char === '"' || char === '\'') {
 				if (currentToken) throw new SyntaxError('Required space before string.')
@@ -150,7 +150,7 @@ function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
 			}
 		} else if (optionType === 'single') {
 			if (char === '-') {
-				if (expectValueNext) throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 				// A side effect is that you can do '-wow-eee'
 				// which is the same as -w -o -w --eee
 				// Not ideal but I think it's fine.
@@ -159,8 +159,8 @@ function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
 				// Also, '-' is ok and does nothing. Again, not ideal, but tolerable.
 				optionType = null
 			} else if (expectValueNext) {
-				throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
-			} else if (haveArgs.includes(char)) {
+				throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
+			} else if (haveArgs.has(char)) {
 				expectValueNext = char
 			} else {
 				options[char] = true
@@ -169,7 +169,7 @@ function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
 			if (isWhitespace(char)) {
 				optionType = null
 				if (currentToken) {
-					if (haveArgs.includes(currentToken)) {
+					if (haveArgs.has(currentToken)) {
 						expectValueNext = currentToken
 					} else {
 						options[currentToken] = true
@@ -197,7 +197,87 @@ function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
 		throw new SyntaxError('String was not properly closed.')
 	}
 	if (expectValueNext) {
-		throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+		throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 	}
 	return options
+}
+
+// `optionTypes` should be an array of objects like
+// {
+// 	name: 'apple',
+// 	aliases: ['a', 'aple'],
+// 	validate: value => /\w+/.test(value),
+// 	transform: value => ({ value }),
+// 	description: 'Apple name',
+// 	optional: true
+// }
+// Should give an options object like { apple: { value: 'happy' } } for '-a happy'
+// If `validate` and `transform` are absent, it's assumed to be a presence thing
+//   and will give a boolean.
+// `optionTypes` can be omitted and it won't validate anything.
+// Special names: Use '...' for undashed arguments (it'll return an array)
+//   and '--' for everything after a `--` (unparsed)
+const builtInValidators = {
+	isBoolean:
+}
+function bashlikeArgumentParser (optionTypes = null) {
+	const expectsNextValue = new Set()
+	if (optionTypes) {
+		for (const optionType of optionTypes) {
+			const { name, aliases = [], validate, transform } = optionType
+			if (validate || transform) {
+				for (const item of [name, ...aliases]) {
+					if (expectValueNext.has(item)) {
+						throw new Error(`Duplicate option name "${item}"`)
+					} else {
+						expectsNextValue.push(item)
+					}
+				}
+			}
+			if (typeof validate !== 'function') {
+				if (!validate) {
+					optionType.validate = builtInValidators.isBoolean
+				} else if (builtInValidators[validate]) {
+					optionType.validate = builtInValidators[validate]
+				} else {
+					throw new Error(`Invalid validate function for "${name}"`)
+				}
+			}
+		}
+	}
+	return {
+		parse: (unparsedArgs, data) => {
+			const options = parseBashlike(unparsedArgs, expectsNextValue, data)
+			if (!optionTypes) return options
+			const validatedOptions = {}
+			for (const { name, aliases = [], validate, transform, optional }) {
+				if (options[name] === undefined) {
+					for (const alias of aliases) {
+						if (options[alias] !== undefined) {
+							options[name] = options[alias]
+							break
+						}
+					}
+				}
+				const value = options[name]
+				if (value === undefined) {
+					if (optional) {
+						continue
+					} else {
+						throw new Error(`Missing option "${name}"`)
+					}
+				}
+				if (validate(value)) {
+					validatedOptions[name] = transform ? transform(value) : value
+				} else if (!optional) {
+					throw new Error(`Option "${name}" did not pass validation.`)
+				}
+			}
+		}
+	}
+}
+
+export {
+	simpleArgumentParser,
+	bashlikeArgumentParser
 }
