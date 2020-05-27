@@ -69,6 +69,7 @@ export default async function main (token) {
 			client,
 			unparsedArgs,
 			msg,
+			temp: context.temp,
 			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
 			// Is this a good idea? lol
@@ -92,6 +93,7 @@ export default async function main (token) {
 					calls: 0
 				})
 					.catch(err => {
+						console.log(err)
 						// If there's a runtime error I guess we can also report it
 						return err.stack
 					})

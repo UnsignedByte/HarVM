@@ -241,7 +241,8 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 const builtInValidators = {
 	isBoolean: value => typeof value === 'boolean',
 	isWord: value => /\w+/.test(value),
-	isArray: Array.isArray
+	isArray: Array.isArray,
+	isString: value => typeof value === 'string'
 }
 function bashlikeArgumentParser (optionTypes = null) {
 	const expectsNextValue = optionTypes === 'expect-all' ? null : new Set()
@@ -254,16 +255,18 @@ function bashlikeArgumentParser (optionTypes = null) {
 					aliases.unshift(name)
 				}
 				for (const alias of aliases) {
-					if (expectValueNext.has(alias)) {
+					if (expectsNextValue.has(alias)) {
 						throw new Error(`Duplicate option name "${alias}".`)
 					} else {
-						expectsNextValue.push(alias)
+						expectsNextValue.add(alias)
 					}
 				}
 			}
 			if (typeof validate !== 'function') {
 				if (!validate) {
+					// Assume that it's a thing where only the presence matters
 					optionType.validate = builtInValidators.isBoolean
+					optionType.optional = true
 				} else if (builtInValidators[validate]) {
 					optionType.validate = builtInValidators[validate]
 				} else {
@@ -304,6 +307,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 					throw new Error(`Option "${name}" did not pass validation.`)
 				}
 			}
+			return validatedOptions
 		}
 	}
 }

@@ -18,7 +18,7 @@ function set ({ unparsedArgs, temp }) {
 const opParser = bashlikeArgumentParser([
 	{ name: 'outputName', aliases: ['>'], validate: 'isWord' },
 	{ name: 'varA', aliases: ['a'], validate: 'isWord' },
-	{ name: 'varA', aliases: ['a'], validate: 'isWord' },
+	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
 	{ name: 'operation', aliases: ['...'], transform: ([op]) => op }
 ])
 function op ({ unparsedArgs, temp }) {
@@ -55,13 +55,13 @@ const runParser = bashlikeArgumentParser([
 	{
 		name: 'withVars',
 		aliases: ['--'],
-		validate: 'isArray',
+		validate: 'isString',
 		transform: (varValues, data) => {
 			const values = runVarsParser.parse(varValues, data)
 			for (const [varName, value] of Object.entries(values)) {
 				if (/\w+/.test(varName)) {
 					data.set(varName, value)
-				} else {
+				} else if (varName !== '...') {
 					return `\`${varName}\` is an invalid variable name.`
 				}
 			}
@@ -72,7 +72,7 @@ const runParser = bashlikeArgumentParser([
 	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
 ])
 function run ({ unparsedArgs, run, temp }) {
-	// eg `data run "data op -a a + -b b -> sum" "data log \"${sum}\"" -- -a 3 -b 4`
+	// eg `data run "data op -a a + -b b -> sum" "data log '${sum}'" -- -a 3 -b 4`
 	// will log 7
 	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, temp)
 	// If `withVars` is a string, there was a problem
@@ -88,7 +88,7 @@ const logParser = bashlikeArgumentParser([
 ])
 function log ({ unparsedArgs, temp, reply }) {
 	const { output } = logParser.parse(unparsedArgs, temp)
-	reply(output)
+	return reply(output)
 }
 
 export {
