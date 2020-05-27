@@ -60,6 +60,18 @@
 
   var Discord$1 = window.Discord;
 
+  /*
+  * @Author: UnsignedByte
+  * @Date:   00:35:20, 25-May-2020
+  * @Last Modified by:   UnsignedByte
+  * @Last Modified time: 00:36:36, 25-May-2020
+  */
+
+  const whitespaceRegex = /^\s$/;
+  function isWhitespace (char) {
+  	return whitespaceRegex.test(char)
+  }
+
   // Simple argument parser
   // Syntax for `syntax`:
   // - keyword
@@ -86,7 +98,7 @@
   		}
   	});
   	return {
-  		syntax: Object.values(rawOptions),
+  		toString: () => Object.values(rawOptions),
   		parse: unparsedArgs => {
   			// Unnecessarily complicated
   			const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
@@ -138,6 +150,240 @@
   	}
   }
 
+  // Can parse something like
+  // parseBashlike('happy -car cool', ['r'])
+  // into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
+  // If `haveArgs` is null, then all options will expect values.
+  function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
+  	const options = { '...': [] };
+  	let optionType = null; // 'single' | 'double' | 'rest' | null
+  	let inString = null; // '"' | '\'' | '`' | null
+  	let escapeNext = false;
+  	let currentToken = '';
+  	let expectValueNext = null; // Otherwise is the name of the option
+  	let variableSubst = null; // null | 1 | '' ... (1 means it has found a '$')
+  	for (const char of raw) {
+  		if (inString) {
+  			if (variableSubst === 1) {
+  				if (char === '(') {
+  					variableSubst = '';
+  					continue
+  				} else {
+  					currentToken += '$';
+  					variableSubst = null;
+  				}
+  			}
+  			if (variableSubst !== null) {
+  				if (char === ')') {
+  					const value = data.get(variableSubst);
+  					currentToken += value === undefined ? '' : value + '';
+  					variableSubst = null;
+  				} else {
+  					variableSubst += char;
+  				}
+  			} else if (escapeNext) {
+  				currentToken += char;
+  				escapeNext = false;
+  			} else if (char === inString) {
+  				inString = null;
+  				if (expectValueNext) {
+  					options[expectValueNext] = currentToken;
+  					expectValueNext = null;
+  				} else {
+  					options['...'].push(currentToken);
+  				}
+  				currentToken = '';
+  			} else if (char === '\\') {
+  				escapeNext = true;
+  			} else if (char === '$') {
+  				variableSubst = 1;
+  			} else {
+  				currentToken += char;
+  			}
+  		} else if (optionType === null) {
+  			if (char === '-') {
+  				if (currentToken) throw new SyntaxError(`Required space before option (was parsing "${currentToken}").`)
+  				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
+  				optionType = 'single';
+  			} else if (char === '"' || char === '\'' || char === '`') {
+  				if (currentToken) throw new SyntaxError(`Required space before string (was parsing "${currentToken}").`)
+  				inString = char;
+  			} else if (isWhitespace(char)) {
+  				if (currentToken) {
+  					if (expectValueNext) {
+  						options[expectValueNext] = currentToken;
+  						expectValueNext = null;
+  					} else {
+  						options['...'].push(currentToken);
+  					}
+  					currentToken = '';
+  				}
+  			} else {
+  				currentToken += char;
+  			}
+  		} else if (optionType === 'single') {
+  			if (char === '-') {
+  				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
+  				// A side effect is that you can do '-wow-eee'
+  				// which is the same as -w -o -w --eee
+  				// Not ideal but I think it's fine.
+  				optionType = 'double';
+  			} else if (isWhitespace(char)) {
+  				// Also, '-' is ok and does nothing. Again, not ideal, but tolerable.
+  				optionType = null;
+  			} else if (expectValueNext) {
+  				throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
+  			} else if (!haveArgs || haveArgs.has(char)) {
+  				expectValueNext = char;
+  			} else {
+  				options[char] = true;
+  			}
+  		} else if (optionType === 'double') {
+  			if (isWhitespace(char)) {
+  				optionType = null;
+  				if (currentToken) {
+  					if (!haveArgs || haveArgs.has(currentToken)) {
+  						expectValueNext = currentToken;
+  					} else {
+  						options[currentToken] = true;
+  					}
+  					currentToken = '';
+  				} else {
+  					// '--'
+  					optionType = 'rest';
+  					// It's possible for '----' to conflict with '--' but whatever
+  					options['--'] = '';
+  				}
+  			} else {
+  				currentToken += char;
+  			}
+  		} else if (optionType === 'rest') {
+  			if (expectValueNext || !isWhitespace(char)) {
+  				if (!expectValueNext) expectValueNext = true;
+  				options['--'] += char;
+  			}
+  		} else {
+  			console.error('Invalid state...?', { raw, options, optionType, inString, currentToken, char });
+  			throw new Error('Invalid state...?')
+  		}
+  	}
+  	if (inString) {
+  		throw new SyntaxError('String was not properly closed.')
+  	}
+  	if (currentToken) {
+  		if (optionType === null) {
+  			if (expectValueNext) {
+  				options[expectValueNext] = currentToken;
+  				expectValueNext = null;
+  			} else {
+  				options['...'].push(currentToken);
+  			}
+  		} else if (optionType === 'double') {
+  			if (!haveArgs || haveArgs.has(currentToken)) {
+  				expectValueNext = currentToken;
+  			} else {
+  				options[currentToken] = true;
+  			}
+  		}
+  	}
+  	if (expectValueNext && optionType !== 'rest') {
+  		throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
+  	}
+  	return options
+  }
+
+  // `optionTypes` should be an array of objects like
+  // {
+  // 	name: 'apple',
+  // 	aliases: ['a', 'aple'],
+  // 	validate: value => /\w+/.test(value),
+  // 	transform: value => ({ value }),
+  // 	description: 'Apple name',
+  // 	optional: true,
+  // 	aliasesOnly: true
+  // }
+  // Should give an options object like { apple: { value: 'happy' } } for '-a happy'
+  // If `validate` is absent, it's assumed to be a presence thing
+  //   and will give a boolean.
+  // `optionTypes` can be omitted and it won't validate anything.
+  // `optionTypes` can also be 'expect-all' which is basically the same but all
+  //   options will expect a value.
+  // Special names: Use '...' for undashed arguments (it'll return an array; can use aliasesOnly: true to disallow --...)
+  //   and '--' for everything after a `--` (unparsed)
+  const builtInValidators = {
+  	isBoolean: value => typeof value === 'boolean',
+  	isWord: value => /\w+/.test(value),
+  	isArray: Array.isArray,
+  	isString: value => typeof value === 'string'
+  };
+  function bashlikeArgumentParser (optionTypes = null) {
+  	const expectsNextValue = optionTypes === 'expect-all' ? null : new Set();
+  	if (Array.isArray(optionTypes)) {
+  		for (const optionType of optionTypes) {
+  			const { name, aliases = [], validate, transform, aliasesOnly = false } = optionType;
+  			if (validate) {
+  				if (!aliasesOnly) {
+  					// Probably want name top priority
+  					aliases.unshift(name);
+  				}
+  				for (const alias of aliases) {
+  					if (expectsNextValue.has(alias)) {
+  						throw new Error(`Duplicate option name "${alias}".`)
+  					} else {
+  						expectsNextValue.add(alias);
+  					}
+  				}
+  			}
+  			if (typeof validate !== 'function') {
+  				if (!validate) {
+  					// Assume that it's a thing where only the presence matters
+  					optionType.validate = builtInValidators.isBoolean;
+  					optionType.optional = true;
+  				} else if (builtInValidators[validate]) {
+  					optionType.validate = builtInValidators[validate];
+  				} else {
+  					throw new Error(`Invalid validate function for "${name}".`)
+  				}
+  			}
+  		}
+  	}
+  	return {
+  		parse: (unparsedArgs, data) => {
+  			const options = parseBashlike(unparsedArgs, expectsNextValue, data);
+  			if (!Array.isArray(optionTypes)) return options
+  			const validatedOptions = {};
+  			for (const {
+  				name,
+  				aliases = [],
+  				validate,
+  				transform,
+  				optional = false
+  			} of optionTypes) {
+  				let value;
+  				for (const alias of aliases) {
+  					if (options[alias] !== undefined) {
+  						value = options[alias];
+  						break
+  					}
+  				}
+  				if (value === undefined) {
+  					if (optional) {
+  						continue
+  					} else {
+  						throw new Error(`Missing option "${name}".`)
+  					}
+  				}
+  				if (validate(value, data)) {
+  					validatedOptions[name] = transform ? transform(value, data) : value;
+  				} else if (!optional) {
+  					throw new Error(`Option "${name}" did not pass validation.`)
+  				}
+  			}
+  			return validatedOptions
+  		}
+  	}
+  }
+
   function collect ({ client, msg, reply }) {
   	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})));
   }
@@ -159,6 +405,17 @@
   		reply('Your arguments should be in the form ' + parser.syntax
   			.map(option => `\`${option}\``)
   			.join(' or '));
+  	}
+  }
+
+  const bashlikeParser = bashlikeArgumentParser();
+  function sh ({ unparsedArgs, reply }) {
+  	try {
+  		const args = bashlikeParser.parse(unparsedArgs);
+  		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```');
+  	} catch (err) {
+  		// Don't need stack trace I think
+  		return err.message
   	}
   }
 
@@ -184,6 +441,7 @@
     get: get,
     set: set,
     simple: simple,
+    sh: sh,
     'default': main
   });
 
@@ -278,6 +536,108 @@
     'default': help$1
   });
 
+  // PSUEDO CODE - I would like to implement a more clever argument parsing system in the future for this
+
+  const setParser = bashlikeArgumentParser([
+  	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
+  	{ name: 'value', aliases: ['...'], transform: ([value]) => value }
+  ]);
+  function set$2 ({ unparsedArgs, temp }) {
+  	const { variable, value } = setParser.parse(unparsedArgs, temp);
+  	// eg `data set 2 -> a` will set a to 2
+  	temp.set(variable, value);
+  	// I'm not sure if these functions should log anything. It might be annoying
+  	// for batching, but we might also just supress output if batching
+  }
+
+  const opParser = bashlikeArgumentParser([
+  	{ name: 'outputName', aliases: ['>'], validate: 'isWord' },
+  	{ name: 'varA', aliases: ['a'], validate: 'isWord' },
+  	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
+  	{ name: 'operation', aliases: ['...'], validate: 'isArray', transform: ([op]) => op }
+  ]);
+  function op ({ unparsedArgs, temp }) {
+  	const { outputName, operation, varA, varB } = opParser.parse(unparsedArgs, temp);
+  	// eg `data op + -a a -b b -> c` will store a + b in c
+  	const a = +temp.get(varA);
+  	const b = +temp.get(varB);
+  	let output;
+  	switch (operation) {
+  		case '+':
+  			output = a + b;
+  			break
+  		case '-':
+  			output = a - b;
+  			break
+  		case '*':
+  			output = a * b;
+  			break
+  		case '/':
+  			output = a / b;
+  			break
+  		case '%':
+  			output = a % b;
+  			break
+  		case '^':
+  			output = a ** b;
+  			break
+  	}
+  	console.log(output, outputName, temp);
+  	if (output !== undefined) temp.set(outputName, output);
+  }
+
+  const runVarsParser = bashlikeArgumentParser('expect-all');
+  const runParser = bashlikeArgumentParser([
+  	{
+  		name: 'withVars',
+  		aliases: ['--'],
+  		validate: 'isString',
+  		transform: (varValues, data) => {
+  			const values = runVarsParser.parse(varValues, data);
+  			for (const [varName, value] of Object.entries(values)) {
+  				if (/\w+/.test(varName)) {
+  					data.set(varName, value);
+  				} else if (varName !== '...') {
+  					return `\`${varName}\` is an invalid variable name.`
+  				}
+  			}
+  			return
+  		},
+  		optional: true
+  	},
+  	{ name: 'ignoreError', aliases: ['E'] },
+  	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
+  ]);
+  async function runCommand ({ unparsedArgs, run, temp }) {
+  	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
+  	// will log 7
+  	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, temp);
+  	console.log(commands, withVars, ignoreError);
+  	// If `withVars` is a string, there was a problem
+  	if (withVars) return withVars
+  	for (const command of commands) {
+  		const error = await run(command);
+  		if (error && !ignoreError) return error
+  	}
+  }
+
+  const logParser = bashlikeArgumentParser([
+  	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
+  ]);
+  function log ({ unparsedArgs, temp, reply }) {
+  	const { output } = logParser.parse(unparsedArgs, temp);
+  	console.log(output);
+  	return reply(output)
+  }
+
+  var data$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    set: set$2,
+    op: op,
+    run: runCommand,
+    log: log
+  });
+
   /*
   * @Author: UnsignedByte
   * @Date:   23:47:23, 24-May-2020
@@ -290,7 +650,8 @@
     testing: testing,
     help: help,
     game: game,
-    alias: alias
+    alias: alias,
+    data: data$1
   });
 
   /*
@@ -387,6 +748,7 @@
   			client,
   			unparsedArgs,
   			msg,
+  			temp: context.temp,
   			reply: (...args) => reply(msg, ...args),
   			aliasUtil,
   			// Is this a good idea? lol
@@ -410,6 +772,7 @@
   					calls: 0
   				})
   					.catch(err => {
+  						console.log(err);
   						// If there's a runtime error I guess we can also report it
   						return err.stack
   					});

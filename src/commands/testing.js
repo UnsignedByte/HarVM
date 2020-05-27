@@ -1,4 +1,4 @@
-import { simpleArgumentParser } from '../utils/parsers.js'
+import { simpleArgumentParser, bashlikeArgumentParser } from '../utils/parsers.js'
 
 function collect ({ client, msg, reply }) {
 	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})))
@@ -24,6 +24,17 @@ function simple ({ unparsedArgs, reply }) {
 	}
 }
 
+const bashlikeParser = bashlikeArgumentParser()
+function sh ({ unparsedArgs, reply }) {
+	try {
+		const args = bashlikeParser.parse(unparsedArgs)
+		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
+	} catch (err) {
+		// Don't need stack trace I think
+		return err.message
+	}
+}
+
 function get ({ client, unparsedArgs, reply }) {
 	reply('```\n' + JSON.stringify(client.data.get({args:unparsedArgs})) + '\n```')
 }
@@ -38,5 +49,5 @@ function main ({ reply, unparsedArgs }) {
 	reply('hi```\n' + unparsedArgs + '\n```')
 }
 
-export { collect, args, data, get, set, simple }
+export { collect, args, data, get, set, simple, sh }
 export default main

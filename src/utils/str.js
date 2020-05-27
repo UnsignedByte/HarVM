@@ -9,4 +9,12 @@ function escapeRegex(string) {
     return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
-export { escapeRegex }
+const whitespaceRegex = /^\s$/
+function isWhitespace (char) {
+	return whitespaceRegex.test(char)
+}
+
+export {
+	escapeRegex,
+	isWhitespace
+}
