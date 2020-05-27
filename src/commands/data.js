@@ -1,8 +1,11 @@
 // PSUEDO CODE - I would like to implement a more clever argument parsing system in the future for this
 // This is mostly for batching purposes, which I think will be quite interesting
 
-import { parseArgs } from '../utils/parse-args.js'
+import { bashlikeArgumentParser } from '../utils/parsers.js'
 
+const setParser = bashlikeArgumentParser([
+	{ name: 'variable', aliases: ['>'], validate: 'isWord' }
+])
 export function set ({ unparsedArgs, temp }) {
 	const { ['>']: variable, ['']: value } = parseArgs(unparsedArgs)
 	// eg `data set 2 -> a` will set a to 2

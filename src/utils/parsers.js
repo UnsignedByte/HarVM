@@ -212,20 +212,21 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 // 	optional: true
 // }
 // Should give an options object like { apple: { value: 'happy' } } for '-a happy'
-// If `validate` and `transform` are absent, it's assumed to be a presence thing
+// If `validate` is absent, it's assumed to be a presence thing
 //   and will give a boolean.
 // `optionTypes` can be omitted and it won't validate anything.
 // Special names: Use '...' for undashed arguments (it'll return an array)
 //   and '--' for everything after a `--` (unparsed)
 const builtInValidators = {
-	isBoolean:
+	isBoolean: value => typeof value === 'boolean',
+	isWord: value => /\w+/.test(value)
 }
 function bashlikeArgumentParser (optionTypes = null) {
 	const expectsNextValue = new Set()
 	if (optionTypes) {
 		for (const optionType of optionTypes) {
 			const { name, aliases = [], validate, transform } = optionType
-			if (validate || transform) {
+			if (validate) {
 				for (const item of [name, ...aliases]) {
 					if (expectValueNext.has(item)) {
 						throw new Error(`Duplicate option name "${item}"`)
@@ -250,7 +251,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 			const options = parseBashlike(unparsedArgs, expectsNextValue, data)
 			if (!optionTypes) return options
 			const validatedOptions = {}
-			for (const { name, aliases = [], validate, transform, optional }) {
+			for (const { name, aliases = [], validate, transform, optional } of optionTypes) {
 				if (options[name] === undefined) {
 					for (const alias of aliases) {
 						if (options[alias] !== undefined) {
