@@ -86,7 +86,7 @@ function simpleArgumentParser (rawOptions) {
 function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	const options = { '...': [] }
 	let optionType = null // 'single' | 'double' | 'rest' | null
-	let inString = null // '"' | '\'' | null
+	let inString = null // '"' | '\'' | '`' | null
 	let escapeNext = false
 	let currentToken = ''
 	let expectValueNext = null // Otherwise is the name of the option
@@ -104,14 +104,15 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 			}
 			if (variableSubst !== null) {
 				if (char === ')') {
-					const data = data.get(variableSubst)
-					currentToken += data === undefined ? '' : data + ''
+					const value = data.get(variableSubst)
+					currentToken += value === undefined ? '' : value + ''
 					variableSubst = null
 				} else {
 					variableSubst += char
 				}
 			} else if (escapeNext) {
 				currentToken += char
+				escapeNext = false
 			} else if (char === inString) {
 				inString = null
 				if (expectValueNext) {
@@ -133,7 +134,7 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 				if (currentToken) throw new SyntaxError(`Required space before option (was parsing "${currentToken}").`)
 				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 				optionType = 'single'
-			} else if (char === '"' || char === '\'') {
+			} else if (char === '"' || char === '\'' || char === '`') {
 				if (currentToken) throw new SyntaxError(`Required space before string (was parsing "${currentToken}").`)
 				inString = char
 			} else if (isWhitespace(char)) {
