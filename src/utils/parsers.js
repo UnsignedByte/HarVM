@@ -1,3 +1,5 @@
+import { isWhitespace } from './str.js'
+
 // Simple argument parser
 // Syntax for `syntax`:
 // - keyword
@@ -75,4 +77,127 @@ export function simpleArgumentParser (rawOptions) {
 			return null
 		}
 	}
+}
+
+// Can parse something like
+// parseBashlike('happy -car cool', ['r'])
+// into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
+function parseBashlike (raw = '', haveArgs = [], data = new Map()) {
+	const options = { '...': [] }
+	let optionType = null // 'single' | 'double' | 'rest' | null
+	let inString = null // '"' | '\'' | null
+	let escapeNext = false
+	let currentToken = ''
+	let expectValueNext = null // Otherwise is the name of the option
+	let variableSubst = null // null | 1 | '' ... (1 means it has found a '$')
+	for (const char of raw) {
+		if (inString) {
+			if (variableSubst === 1) {
+				if (char === '(') {
+					variableSubst = ''
+					continue
+				} else {
+					currentToken += '$'
+					variableSubst = null
+				}
+			}
+			if (variableSubst !== null) {
+				if (char === ')') {
+					const data = data.get(variableSubst)
+					currentToken += data === undefined ? '' : data + ''
+					variableSubst = null
+				} else {
+					variableSubst += char
+				}
+			} else if (escapeNext) {
+				currentToken += char
+			} else if (char === inString) {
+				inString = null
+				if (expectValueNext) {
+					options[expectValueNext] = currentToken
+					expectValueNext = null
+				} else {
+					options['...'].push(currentToken)
+				}
+				currentToken = ''
+			} else if (char === '\\') {
+				escapeNext = true
+			} else if (char === '$') {
+				variableSubst = 1
+			} else {
+				currentToken += char
+			}
+		} else if (optionType === null) {
+			if (char === '-') {
+				if (currentToken) throw new SyntaxError('Required space before option.')
+				if (expectValueNext) throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+				optionType = 'single'
+			} else if (char === '"' || char === '\'') {
+				if (currentToken) throw new SyntaxError('Required space before string.')
+				inString = optionType
+			} else if (isWhitespace(char)) {
+				if (currentToken) {
+					if (expectValueNext) {
+						options[expectValueNext] = currentToken
+						expectValueNext = null
+					} else {
+						options['...'].push(currentToken)
+					}
+					currentToken = ''
+				}
+			} else {
+				currentToken += char
+			}
+		} else if (optionType === 'single') {
+			if (char === '-') {
+				if (expectValueNext) throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+				// A side effect is that you can do '-wow-eee'
+				// which is the same as -w -o -w --eee
+				// Not ideal but I think it's fine.
+				optionType = 'double'
+			} else if (isWhitespace(char)) {
+				// Also, '-' is ok and does nothing. Again, not ideal, but tolerable.
+				optionType = null
+			} else if (expectValueNext) {
+				throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+			} else if (haveArgs.includes(char)) {
+				expectValueNext = char
+			} else {
+				options[char] = true
+			}
+		} else if (optionType === 'double') {
+			if (isWhitespace(char)) {
+				optionType = null
+				if (currentToken) {
+					if (haveArgs.includes(currentToken)) {
+						expectValueNext = currentToken
+					} else {
+						options[currentToken] = true
+					}
+				} else {
+					// '--'
+					optionType = 'rest'
+					// It's possible for '----' to conflict with '--' but whatever
+					options['--'] = ''
+				}
+			} else {
+				currentToken += char
+			}
+		} else if (optionType === 'rest') {
+			if (expectValueNext || !isWhitespace(char)) {
+				if (!expectValueNext) expectValueNext = true
+				options['--'] += char
+			}
+		} else {
+			console.error('Invalid state...?', { raw, options, optionType, inString, currentToken, char })
+			throw new Error('Invalid state...?')
+		}
+	}
+	if (inString) {
+		throw new SyntaxError('String was not properly closed.')
+	}
+	if (expectValueNext) {
+		throw new SyntaxError(`Option ${expectValueNext} expects a value.`)
+	}
+	return options
 }
