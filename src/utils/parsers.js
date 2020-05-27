@@ -82,6 +82,7 @@ function simpleArgumentParser (rawOptions) {
 // Can parse something like
 // parseBashlike('happy -car cool', ['r'])
 // into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
+// If `haveArgs` is null, then all options will expect values.
 function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	const options = { '...': [] }
 	let optionType = null // 'single' | 'double' | 'rest' | null
@@ -129,12 +130,12 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 			}
 		} else if (optionType === null) {
 			if (char === '-') {
-				if (currentToken) throw new SyntaxError('Required space before option.')
+				if (currentToken) throw new SyntaxError(`Required space before option (was parsing "${currentToken}").`)
 				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 				optionType = 'single'
 			} else if (char === '"' || char === '\'') {
-				if (currentToken) throw new SyntaxError('Required space before string.')
-				inString = optionType
+				if (currentToken) throw new SyntaxError(`Required space before string (was parsing "${currentToken}").`)
+				inString = char
 			} else if (isWhitespace(char)) {
 				if (currentToken) {
 					if (expectValueNext) {
@@ -160,7 +161,7 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 				optionType = null
 			} else if (expectValueNext) {
 				throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
-			} else if (haveArgs.has(char)) {
+			} else if (!haveArgs || haveArgs.has(char)) {
 				expectValueNext = char
 			} else {
 				options[char] = true
@@ -169,11 +170,12 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 			if (isWhitespace(char)) {
 				optionType = null
 				if (currentToken) {
-					if (haveArgs.has(currentToken)) {
+					if (!haveArgs || haveArgs.has(currentToken)) {
 						expectValueNext = currentToken
 					} else {
 						options[currentToken] = true
 					}
+					currentToken = ''
 				} else {
 					// '--'
 					optionType = 'rest'
@@ -196,7 +198,23 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	if (inString) {
 		throw new SyntaxError('String was not properly closed.')
 	}
-	if (expectValueNext) {
+	if (currentToken) {
+		if (optionType === null) {
+			if (expectValueNext) {
+				options[expectValueNext] = currentToken
+				expectValueNext = null
+			} else {
+				options['...'].push(currentToken)
+			}
+		} else if (optionType === 'double') {
+			if (!haveArgs || haveArgs.has(currentToken)) {
+				expectValueNext = currentToken
+			} else {
+				options[currentToken] = true
+			}
+		}
+	}
+	if (expectValueNext && optionType !== 'rest') {
 		throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 	}
 	return options
@@ -209,29 +227,37 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 // 	validate: value => /\w+/.test(value),
 // 	transform: value => ({ value }),
 // 	description: 'Apple name',
-// 	optional: true
+// 	optional: true,
+// 	aliasesOnly: true
 // }
 // Should give an options object like { apple: { value: 'happy' } } for '-a happy'
 // If `validate` is absent, it's assumed to be a presence thing
 //   and will give a boolean.
 // `optionTypes` can be omitted and it won't validate anything.
-// Special names: Use '...' for undashed arguments (it'll return an array)
+// `optionTypes` can also be 'expect-all' which is basically the same but all
+//   options will expect a value.
+// Special names: Use '...' for undashed arguments (it'll return an array; can use aliasesOnly: true to disallow --...)
 //   and '--' for everything after a `--` (unparsed)
 const builtInValidators = {
 	isBoolean: value => typeof value === 'boolean',
-	isWord: value => /\w+/.test(value)
+	isWord: value => /\w+/.test(value),
+	isArray: Array.isArray
 }
 function bashlikeArgumentParser (optionTypes = null) {
-	const expectsNextValue = new Set()
-	if (optionTypes) {
+	const expectsNextValue = optionTypes === 'expect-all' ? null : new Set()
+	if (Array.isArray(optionTypes)) {
 		for (const optionType of optionTypes) {
-			const { name, aliases = [], validate, transform } = optionType
+			const { name, aliases = [], validate, transform, aliasesOnly = false } = optionType
 			if (validate) {
-				for (const item of [name, ...aliases]) {
-					if (expectValueNext.has(item)) {
-						throw new Error(`Duplicate option name "${item}"`)
+				if (!aliasesOnly) {
+					// Probably want name top priority
+					aliases.unshift(name)
+				}
+				for (const alias of aliases) {
+					if (expectValueNext.has(alias)) {
+						throw new Error(`Duplicate option name "${alias}".`)
 					} else {
-						expectsNextValue.push(item)
+						expectsNextValue.push(alias)
 					}
 				}
 			}
@@ -241,7 +267,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 				} else if (builtInValidators[validate]) {
 					optionType.validate = builtInValidators[validate]
 				} else {
-					throw new Error(`Invalid validate function for "${name}"`)
+					throw new Error(`Invalid validate function for "${name}".`)
 				}
 			}
 		}
@@ -249,27 +275,31 @@ function bashlikeArgumentParser (optionTypes = null) {
 	return {
 		parse: (unparsedArgs, data) => {
 			const options = parseBashlike(unparsedArgs, expectsNextValue, data)
-			if (!optionTypes) return options
+			if (!Array.isArray(optionTypes)) return options
 			const validatedOptions = {}
-			for (const { name, aliases = [], validate, transform, optional } of optionTypes) {
-				if (options[name] === undefined) {
-					for (const alias of aliases) {
-						if (options[alias] !== undefined) {
-							options[name] = options[alias]
-							break
-						}
+			for (const {
+				name,
+				aliases = [],
+				validate,
+				transform,
+				optional = false
+			} of optionTypes) {
+				let value
+				for (const alias of aliases) {
+					if (options[alias] !== undefined) {
+						value = options[alias]
+						break
 					}
 				}
-				const value = options[name]
 				if (value === undefined) {
 					if (optional) {
 						continue
 					} else {
-						throw new Error(`Missing option "${name}"`)
+						throw new Error(`Missing option "${name}".`)
 					}
 				}
-				if (validate(value)) {
-					validatedOptions[name] = transform ? transform(value) : value
+				if (validate(value, data)) {
+					validatedOptions[name] = transform ? transform(value, data) : value
 				} else if (!optional) {
 					throw new Error(`Option "${name}" did not pass validation.`)
 				}

@@ -30,7 +30,8 @@ function sh ({ unparsedArgs, reply }) {
 		const args = bashlikeParser.parse(unparsedArgs)
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 	} catch (err) {
-		reply(err.message)
+		// Don't need stack trace I think
+		return err.message
 	}
 }
 
