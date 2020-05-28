@@ -333,6 +333,8 @@
   						expectsNextValue.add(alias);
   					}
   				}
+  			} else if (aliases.includes('...')) {
+  				console.warn('A `...` option does not have a validate function. You probably might want to add `, validate: \'isArray\'`.');
   			}
   			if (typeof validate !== 'function') {
   				if (!validate) {
@@ -540,7 +542,7 @@
 
   const setParser = bashlikeArgumentParser([
   	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
-  	{ name: 'value', aliases: ['...'], transform: ([value]) => value }
+  	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
   ]);
   function set$2 ({ unparsedArgs, temp }) {
   	const { variable, value } = setParser.parse(unparsedArgs, temp);
@@ -582,7 +584,6 @@
   			output = a ** b;
   			break
   	}
-  	console.log(output, outputName, temp);
   	if (output !== undefined) temp.set(outputName, output);
   }
 
@@ -608,13 +609,13 @@
   	{ name: 'ignoreError', aliases: ['E'] },
   	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
   ]);
-  async function runCommand ({ unparsedArgs, run, temp }) {
+  async function runCommand ({ unparsedArgs, run, temp, trace }) {
   	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
   	// will log 7
   	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, temp);
   	console.log(commands, withVars, ignoreError);
   	// If `withVars` is a string, there was a problem
-  	if (withVars) return withVars
+  	if (withVars) return { message: withVars, trace }
   	for (const command of commands) {
   		const error = await run(command);
   		if (error && !ignoreError) return error
@@ -626,7 +627,6 @@
   ]);
   function log ({ unparsedArgs, temp, reply }) {
   	const { output } = logParser.parse(unparsedArgs, temp);
-  	console.log(output);
   	return reply(output)
   }
 
@@ -638,10 +638,77 @@
     log: log
   });
 
+  const getCommands = /^(?:```\w*\r?\n([^]+)\r?\n```|([^=][^]*)|=\s*(\w+)\s*<-\s*(".+"))$/;
+  const getMultilineName = /^@\s*(\w+)\s*(.*)$/;
+  const getIndent = /^\s+/;
+
+  function getIndentLength (line) {
+  	const match = line.match(getIndent);
+  	return match ? match[0].length : 0
+  }
+
   // This should make it more convenient to batch calls by making things
   // syntactic sugar for other things
-  function batch ({ unparsedArgs, run, temp }) {
-  	// TODO: Remove the optional ``` code block, probably using fancy regex
+  async function batch ({ unparsedArgs, run, temp, reply }) {
+  	const match = unparsedArgs.match(getCommands);
+  	// Should this err?
+  	if (!match) return
+  	const [, tildeRawCmds, plainRawCmds, storeVarName, storeValue] = match;
+  	if (storeVarName) {
+  		temp.set(storeVarName, JSON.parse(storeValue));
+  		return
+  	}
+  	const rawCommands = (tildeRawCmds || plainRawCmds).split(/\r?\n/);
+  	const commands = [];
+  	for (let i = 0; i < rawCommands.length; i++) {
+  		const rawCommand = rawCommands[i];
+
+  		// Ignore comments
+  		if (rawCommand[0] === '#') continue
+
+  		// Multiline string
+  		if (rawCommand[0] === '@') {
+  			const afterSetting = [];
+  			let current = null;
+  			for (; i < rawCommands.length; i++) {
+  				const rawCommand = rawCommands[i];
+  				// If is currently in a multiline block
+  				if (current) {
+  					if (getIndentLength(rawCommand) >= current.baseIndent) {
+  						current.data.push(rawCommand.slice(current.baseIndent));
+  					} else {
+  						// If the current line is less indented than the first line of the
+  						// multiline block
+  						commands.push(`batch = ${current.varName} <- ${JSON.stringify(current.data.join('\n'))}`);
+  						current = null;
+  					}
+  				}
+  				if (!current) {
+  					if (rawCommand[0] !== '@') {
+  						i--;
+  						break
+  					}
+  					const [, varName, thenCommand ] = rawCommand.match(getMultilineName);
+  					if (thenCommand) afterSetting.push(thenCommand);
+  					current = {
+  						varName,
+  						data: [],
+  						baseIndent: getIndentLength(rawCommands[i + 1] || '')
+  					};
+  				}
+  			}
+  			if (current) {
+  				commands.push(`batch = ${current.varName} <- ${JSON.stringify(current.data.join('\n'))}`);
+  			}
+  			commands.push(...afterSetting);
+  		} else if (rawCommand.trim() !== '') {
+  			commands.push(rawCommand);
+  		}
+  	}
+  	for (const command of commands) {
+  		const error = await run(command);
+  		if (error) return error
+  	}
   }
 
   // Ideally:
@@ -653,23 +720,48 @@
   # in a VARIABLE; this can be passed into methods that can run the commands.
   # This is actually a separate command inserted before the line; maybe it'll use
   # its own setter like `batch storeBlock`
-  :if control if "$(a)" = 2 "batch $(if)" "batch $(else)"
+  @if control if "$(a)" = 2 "batch $(if)" "batch $(else)"
   	# `batch` is indentation sensitive. If the next line is more indented than the
   	# previous, it'll use that as the baseline indent. All the following lines will
   	# be deindented when stored in the variable.
   	data log "a is equal to 2, epic"
-  :else
+  @else
   	# I think for situations where there are multiple blocks in a row, it'll group
   	# the store commands before the actual command. Hmm
   	data log "a is not equal to 2...?"
 
-  :str data log "$(str)"
+  @str data log "$(str)"
   	"Blocks" can actually be used for multiline strings.
   */
 
   var batch$1 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     'default': batch
+  });
+
+  // Basically the same as the control blocks in Scratch lol
+
+  const ifParser = bashlikeArgumentParser([
+  	{ name: 'values', aliases: ['...'], validate: 'isArray' }
+  ]);
+  function ifCondition ({ unparsedArgs, temp, run }) {
+  	const { values } = ifParser.parse(unparsedArgs, temp);
+  	for (let i = 0; i < values.length; i += 1) {
+  		if (i === values.length - 1) {
+  			// If it's the last item in the array, then it's the else code.
+  			return run(values[i])
+  		} else {
+  			// Empty string is assumed to be false
+  			if (values[i]) {
+  				return run(values[i + 1])
+  			}
+  		}
+  	}
+  }
+
+  var control = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    'if': ifCondition
   });
 
   /*
@@ -686,7 +778,8 @@
     game: game,
     alias: alias,
     data: data$1,
-    batch: batch$1
+    batch: batch$1,
+    control: control
   });
 
   /*
@@ -751,7 +844,12 @@
   		// We can check if the user has gone over their call limit here
   		const { msg } = context;
   		const match = command.match(commandParser);
-  		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
+  		if (!match) {
+  			return {
+  				message: `Invalid syntax; command names may only contain letters, numbers, and underscores.`,
+  				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
+  			}
+  		}
   		const [matched, commandName, subCommandName] = match;
   		let commandFn, unparsedArgs;
   		const commandGroup = commands[commandName];
@@ -761,22 +859,31 @@
   			if (commandGroup[subCommandName]) {
   				commandFn = commandGroup[subCommandName];
   				unparsedArgs = command.slice(matched.length).trim();
+  				context.trace.unshift(`${commandName}/${subCommandName}`);
   			} else if (commandGroup.default) {
   				commandFn = commandGroup.default;
   				unparsedArgs = command.slice(commandName.length).trim();
+  				context.trace.unshift(`${commandName}/@default`);
   			} else {
-  				return subCommandName
-  					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
-  					: `This command requires a subcommand.`
+  				return {
+  					message: subCommandName
+  						? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
+  						: `This command requires a subcommand.`,
+  					trace: context.trace
+  				}
   			}
   		} else if (aliases.has(commandName)) {
+  			context.trace.unshift(`@alias/${commandName}`);
   			// Another benefit of putting all this in `runCommand` is that we can
   			// recursively call
   			// BUG: This setup may have a vulnerability where setting an alias to
   			// itself will cause a maximum call size limit reached error
   			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
   		} else {
-  			return `Unknown command \`${command}\``
+  			return {
+  				message: `Unknown command \`${command}\`.`,
+  				trace: context.trace
+  			}
   		}
   		// Commands can return a string for an error message I guess
   		return await commandFn({
@@ -787,7 +894,11 @@
   			reply: (...args) => reply(msg, ...args),
   			aliasUtil,
   			// Is this a good idea? lol
-  			run: command => runCommand(command, context)
+  			run: command => {
+  				// Clone `trace` lol
+  				const { trace, ...otherContext } = context;
+  				return runCommand(command, { trace: [...trace], ...otherContext })
+  			}
   		})
     }
 
@@ -804,16 +915,26 @@
   					// Keep track of calls (in case it recurses); this way, we can "charge"
   					// people for how many commands they run to discourage complex
   					// computations
-  					calls: 0
+  					calls: 0,
+  					trace: []
   				})
   					.catch(err => {
-  						console.log(err);
+  						const id = Math.random().toString(36).slice(2);
+  						console.log(id, err);
   						// If there's a runtime error I guess we can also report it
-  						return err.stack
+  						return { message: err.message, runtime: true, id }
   					});
   				// TODO: Probably can make this more sophisticated by indicating that it should
   				// have a red stripe etc
-          if (error) reply(msg, error);
+          if (error) {
+  					if (typeof error === 'string') {
+  						reply(msg, error);
+  					} else if (error.runtime) {
+  						reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}`);
+  					} else if (error.trace) {
+  						reply(msg, `A problem occurred:\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`);
+  					}
+  				}
         }
       }
     });
