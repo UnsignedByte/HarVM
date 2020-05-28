@@ -32,10 +32,13 @@ export default async function batch ({ unparsedArgs, run, temp, reply }) {
 			let current = null
 			for (; i < rawCommands.length; i++) {
 				const rawCommand = rawCommands[i]
+				// If is currently in a multiline block
 				if (current) {
 					if (getIndentLength(rawCommand) >= current.baseIndent) {
 						current.data.push(rawCommand.slice(current.baseIndent))
 					} else {
+						// If the current line is less indented than the first line of the
+						// multiline block
 						commands.push(`batch = ${current.varName} <- ${JSON.stringify(current.data.join('\n'))}`)
 						current = null
 					}
