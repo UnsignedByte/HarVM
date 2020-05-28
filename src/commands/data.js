@@ -5,7 +5,7 @@ import { bashlikeArgumentParser } from '../utils/parsers.js'
 
 const setParser = bashlikeArgumentParser([
 	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
-	{ name: 'value', aliases: ['...'], transform: ([value]) => value }
+	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
 ])
 function set ({ unparsedArgs, temp }) {
 	const { variable, value } = setParser.parse(unparsedArgs, temp)

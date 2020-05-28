@@ -262,6 +262,8 @@ function bashlikeArgumentParser (optionTypes = null) {
 						expectsNextValue.add(alias)
 					}
 				}
+			} else if (aliases.includes('...')) {
+				console.warn('A `...` option does not have a validate function. You probably might want to add `, validate: \'isArray\'`.')
 			}
 			if (typeof validate !== 'function') {
 				if (!validate) {
