@@ -1,4 +1,4 @@
-const getCommands = /^(?:```(?:\w+\n)?(.+)\n?```|(.+))$/
+const getCommands = /^(?:```\w*\r?\n([^]+)\r?\n```|([^=][^]*)|=\s*(\w+)\s*<-\s*(".+"))$/
 const getMultilineName = /^@\s*(\w+)\s*(.*)$/
 const getIndent = /^\s+/
 
@@ -9,11 +9,16 @@ function getIndentLength (line) {
 
 // This should make it more convenient to batch calls by making things
 // syntactic sugar for other things
-export default function batch ({ unparsedArgs, run, temp, reply }) {
+export default async function batch ({ unparsedArgs, run, temp, reply }) {
 	const match = unparsedArgs.match(getCommands)
 	// Should this err?
 	if (!match) return
-	const rawCommands = (match[1] || match[2]).split(/\r?\n/)
+	const [, tildeRawCmds, plainRawCmds, storeVarName, storeValue] = match
+	if (storeVarName) {
+		temp.set(storeVarName, JSON.parse(storeValue))
+		return
+	}
+	const rawCommands = (tildeRawCmds || plainRawCmds).split(/\r?\n/)
 	const commands = []
 	for (let i = 0; i < rawCommands.length; i++) {
 		const rawCommand = rawCommands[i]
@@ -31,7 +36,7 @@ export default function batch ({ unparsedArgs, run, temp, reply }) {
 					if (getIndentLength(rawCommand) >= current.baseIndent) {
 						current.data.push(rawCommand.slice(current.baseIndent))
 					} else {
-						commands.push(`batch store ${current.varName} ${JSON.stringify(current.data.join('\n'))}`)
+						commands.push(`batch = ${current.varName} <- ${JSON.stringify(current.data.join('\n'))}`)
 						current = null
 					}
 				}
@@ -40,7 +45,7 @@ export default function batch ({ unparsedArgs, run, temp, reply }) {
 						i--
 						break
 					}
-					const [ varName, thenCommand ] = rawCommand.match(getMultilineName)
+					const [, varName, thenCommand ] = rawCommand.match(getMultilineName)
 					if (thenCommand) afterSetting.push(thenCommand)
 					current = {
 						varName,
@@ -50,13 +55,17 @@ export default function batch ({ unparsedArgs, run, temp, reply }) {
 				}
 			}
 			if (current) {
-				commands.push(`batch store ${current.varName} ${JSON.stringify(current.data.join('\n'))}`)
+				commands.push(`batch = ${current.varName} <- ${JSON.stringify(current.data.join('\n'))}`)
 			}
+			commands.push(...afterSetting)
 		} else if (rawCommand.trim() !== '') {
 			commands.push(rawCommand)
 		}
 	}
-	reply('```json\n' + JSON.stringify(commands, null, 2) + '\n```')
+	for (const command of commands) {
+		const error = await run(command)
+		if (error) return error
+	}
 }
 
 // Ideally:
