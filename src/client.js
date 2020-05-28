@@ -37,7 +37,12 @@ export default async function main (token) {
 		// We can check if the user has gone over their call limit here
 		const { msg } = context
 		const match = command.match(commandParser)
-		if (!match) return `Invalid syntax; command names may only contain letters, numbers, and underscores.`
+		if (!match) {
+			return {
+				message: `Invalid syntax; command names may only contain letters, numbers, and underscores.`,
+				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
+			}
+		}
 		const [matched, commandName, subCommandName] = match
 		let commandFn, unparsedArgs
 		const commandGroup = commands[commandName]
@@ -47,22 +52,31 @@ export default async function main (token) {
 			if (commandGroup[subCommandName]) {
 				commandFn = commandGroup[subCommandName]
 				unparsedArgs = command.slice(matched.length).trim()
+				context.trace.unshift(`${commandName}/${subCommandName}`)
 			} else if (commandGroup.default) {
 				commandFn = commandGroup.default
 				unparsedArgs = command.slice(commandName.length).trim()
+				context.trace.unshift(`${commandName}/@default`)
 			} else {
-				return subCommandName
-					? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
-					: `This command requires a subcommand.`
+				return {
+					message: subCommandName
+						? `Unknown subcommand \`${commandName} ${subCommandName}\`.`
+						: `This command requires a subcommand.`,
+					trace: context.trace
+				}
 			}
 		} else if (aliases.has(commandName)) {
+			context.trace.unshift(`@alias/${commandName}`)
 			// Another benefit of putting all this in `runCommand` is that we can
 			// recursively call
 			// BUG: This setup may have a vulnerability where setting an alias to
 			// itself will cause a maximum call size limit reached error
 			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
 		} else {
-			return `Unknown command \`${command}\``
+			return {
+				message: `Unknown command \`${command}\`.`,
+				trace: context.trace
+			}
 		}
 		// Commands can return a string for an error message I guess
 		return await commandFn({
@@ -73,7 +87,11 @@ export default async function main (token) {
 			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
 			// Is this a good idea? lol
-			run: command => runCommand(command, context)
+			run: command => {
+				// Clone `trace` lol
+				const { trace, ...otherContext } = context
+				return runCommand(command, { trace: [...trace], ...otherContext })
+			}
 		})
   }
 
@@ -90,16 +108,26 @@ export default async function main (token) {
 					// Keep track of calls (in case it recurses); this way, we can "charge"
 					// people for how many commands they run to discourage complex
 					// computations
-					calls: 0
+					calls: 0,
+					trace: []
 				})
 					.catch(err => {
-						console.log(err)
+						const id = Math.random().toString(36).slice(2)
+						console.log(id, err)
 						// If there's a runtime error I guess we can also report it
-						return err.stack
+						return { message: err.message, runtime: true, id }
 					})
 				// TODO: Probably can make this more sophisticated by indicating that it should
 				// have a red stripe etc
-        if (error) reply(msg, error)
+        if (error) {
+					if (typeof error === 'string') {
+						reply(msg, error)
+					} else if (error.runtime) {
+						reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}`)
+					} else if (error.trace) {
+						reply(msg, `A problem occurred:\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
+					}
+				}
       }
     }
   })

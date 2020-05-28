@@ -5,7 +5,7 @@ import { bashlikeArgumentParser } from '../utils/parsers.js'
 
 const setParser = bashlikeArgumentParser([
 	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
-	{ name: 'value', aliases: ['...'], transform: ([value]) => value }
+	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
 ])
 function set ({ unparsedArgs, temp }) {
 	const { variable, value } = setParser.parse(unparsedArgs, temp)
@@ -47,7 +47,6 @@ function op ({ unparsedArgs, temp }) {
 			output = a ** b
 			break
 	}
-	console.log(output, outputName, temp)
 	if (output !== undefined) temp.set(outputName, output)
 }
 
@@ -73,13 +72,13 @@ const runParser = bashlikeArgumentParser([
 	{ name: 'ignoreError', aliases: ['E'] },
 	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
 ])
-async function runCommand ({ unparsedArgs, run, temp }) {
+async function runCommand ({ unparsedArgs, run, temp, trace }) {
 	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
 	// will log 7
 	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, temp)
 	console.log(commands, withVars, ignoreError)
 	// If `withVars` is a string, there was a problem
-	if (withVars) return withVars
+	if (withVars) return { message: withVars, trace }
 	for (const command of commands) {
 		const error = await run(command)
 		if (error && !ignoreError) return error
@@ -91,7 +90,6 @@ const logParser = bashlikeArgumentParser([
 ])
 function log ({ unparsedArgs, temp, reply }) {
 	const { output } = logParser.parse(unparsedArgs, temp)
-	console.log(output)
 	return reply(output)
 }
 
