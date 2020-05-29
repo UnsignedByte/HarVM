@@ -39,9 +39,9 @@ function get ({ client, unparsedArgs, reply }) {
 	reply('```\n' + JSON.stringify(client.data.get({args:unparsedArgs})) + '\n```')
 }
 
-function set ({ client, unparsedArgs, reply }) {
+async function set ({ client, unparsedArgs, reply }) {
 	unparsedArgs = unparsedArgs.split(/\s+/)
-	client.data.set({args:unparsedArgs.slice(1)}, unparsedArgs[0])
+	await client.data.set({args:unparsedArgs.slice(1)}, unparsedArgs[0])
 	reply('success')
 }
 

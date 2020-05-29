@@ -5,6 +5,8 @@
 * @Last Modified time: 00:48:46, 26-May-2020
 */
 
+import * as storage from './storage.js'
+
 class DataManager {
 	constructor(raw, saveloc='[HarVM] data'){
 		this.raw = raw;
@@ -12,8 +14,8 @@ class DataManager {
 	}
 
 	#save = ()=>{
-		localStorage.setItem(this.loc, JSON.stringify(this.raw))
-	} 
+		return storage.setItem(this.loc, JSON.stringify(this.raw))
+	}
 
 	get({def, args}, raw=this.raw){
 		def = {} || def
@@ -21,6 +23,7 @@ class DataManager {
 	}
 
 	set({def, args}, value){
+		// Why is it saving before setting??
 		this.#save();
 		this.get({def, args:args.slice(0, args.length-1)})[args[args.length-1]] = value;
 	}

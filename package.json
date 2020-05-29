@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/UnsignedByte/HarVM#readme",
   "dependencies": {
-    "discord.js": "^12.2.0"
+    "discord.js": "^12.2.0",
+    "localforage": "^1.7.3"
   }
 }

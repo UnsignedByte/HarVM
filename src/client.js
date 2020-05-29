@@ -1,5 +1,6 @@
 import * as commands from './commands.js'
 import DataManager from './utils/data_manager.js'
+import * as storage from './utils/storage.js'
 
 export default async function main (token, Discord) {
 	const { Client } = Discord
@@ -7,14 +8,15 @@ export default async function main (token, Discord) {
   // Create an instance of a Discord client
   const client = new Client()
 
-  client.prefix = localStorage.getItem('[HarVM] prefix')
-  client.data = new DataManager(JSON.parse(localStorage.getItem('[HarVM] data'))||{})
+	await storage.ready
+  client.prefix = await storage.getItem('[HarVM] prefix')
+  client.data = new DataManager(JSON.parse(await storage.getItem('[HarVM] data'))||{})
 
-	const aliases = new Map(JSON.parse(localStorage.getItem('[HarVM] aliases')) || [])
+	const aliases = new Map(JSON.parse(await storage.getItem('[HarVM] aliases')) || [])
 	const aliasUtil = {
 		aliases,
 		saveAliases () {
-			localStorage.setItem('[HarVM] aliases', JSON.stringify([...aliases]))
+			return storage.setItem('[HarVM] aliases', JSON.stringify([...aliases]))
 		}
 	}
 
@@ -130,5 +132,5 @@ export default async function main (token, Discord) {
     }
   })
 
-  client.login(token)
+  await client.login(token)
 }
