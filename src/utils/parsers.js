@@ -1,15 +1,5 @@
 import { isWhitespace } from './str.js'
 
-// Simple argument parser
-// Syntax for `syntax`:
-// - keyword
-// - <required>
-// - [optional]
-// For example, simpleArgumentParser({ sheep: 'sheep <name> [colour]' })
-// Will parse arguments as { type: 'sheep', name, colour? }
-// Entries should from highest to lowest priority
-// Returns null if no arguments can be parsed
-
 /**
  * An argument parser; use `.parse(unparsedArgs, temp?)` to parse unparsed
  * arguments.
@@ -100,10 +90,15 @@ function simpleArgumentParser (rawOptions) {
 			// Attempt to match the tokens using each possible parsing until there is
 			// a match.
 			for (const { name, syntax } of options) {
-				// The output
+				/** @type {SimpleParserOutput} The output */
 				const data = { type: name }
-				let success = true
+
+				/** @type {number} The index of the current token. */
 				let i = 0
+
+				/**
+				 * @type {number} The index of the current syntax argument or keyword.
+				 */
 				for (let j = 0; j < syntax.length; j++) {
 					const argument = syntax[j]
 					// Are there insufficient tokens?
@@ -167,6 +162,48 @@ function simpleArgumentParser (rawOptions) {
 // parseBashlike('happy -car cool', ['r'])
 // into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
 // If `haveArgs` is null, then all options will expect values.
+
+/**
+ * A helper function for an argument parser inspired by the style of Bash
+ * commands. Arguments, also known as options, are denoted using a hyphen for
+ * single letters or a double hyphen for an entire word. Single letter option
+ * names can be grouped together after a single hyphen, so "-cat" is equivalent
+ * to "-c -a -t" rather than "--cat". Values that don't follow an argument name
+ * will be placed into an array with argument name "...". All text after a
+ * double hyphen and a space "--" will be left unparsed, so you can have extra
+ * arguments that you could store or parse separately; its argument name is "--".
+ * Values can either be a "word," which is any string that only contains
+ * letters, numbers, and underscores, or a string enclosed in single or double
+ * quotes or backticks. You can also use $(variableName) to substitute in the
+ * value of a variable, which is extremely useful. Backslashes are used to
+ * escape characters.
+ *
+ * @example
+ * parseBashlike(
+ * 	'billy -cat time "epic $(gamer)" --dog woof -- -unparsed wow',
+ * 	new Set(['t', 'dog']),
+ * 	new Map([['gamer', 'Nichodon']])
+ * )
+ * // Outputs:
+ * {
+ * 	'...': ['billy', 'epic Nichodon'],
+ * 	'c': true,
+ * 	'a': true,
+ * 	't': 'time',
+ * 	'dog': 'woof',
+ * 	'--': '-unparsed wow'
+ * }
+ *
+ * @param {string} [raw] - The raw unparsed argument string from the user.
+ * @param {Set<string>} [haveArgs] - A set of all the argument names that expect
+ * a value to follow it.
+ * @param {Map<string, string>} [data] - A map of temporary script variable
+ * values to use for variable substitution.
+ * @return {Object<string, (string | boolean)>} - An object map between argument
+ * names and their string values. If the argument doesn't expect a value to
+ * follow it (according to the `haveArgs` parameter), the value will be `true`
+ * instead.
+ */
 function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	const options = { '...': [] }
 	let optionType = null // 'single' | 'double' | 'rest' | null
