@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "HarVM shake",
   "main": "src/index.js",
+  "type": "module",
   "scripts": {
-		"build": "rollup -c",
+    "build": "rollup -c",
+    "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-		"watch": "rollup -c --watch"
+    "watch": "rollup -c --watch"
   },
   "repository": {
     "type": "git",
@@ -19,6 +21,11 @@
   },
   "homepage": "https://github.com/UnsignedByte/HarVM#readme",
   "dependencies": {
-    "discord.js": "^12.2.0"
+    "discord.js": "^12.2.0",
+    "localforage": "^1.7.3"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^8.0.0",
+    "rollup-plugin-ignore": "^1.0.5"
   }
 }

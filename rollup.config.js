@@ -5,13 +5,22 @@
 * @Last Modified time: 23:47:40, 24-May-2020
 */
 
+import resolve from '@rollup/plugin-node-resolve';
+import ignore from 'rollup-plugin-ignore';
+
 export default {
   input: 'src/main.js',
-  inlineDynamicImports:true,
+  inlineDynamicImports: true,
   output: {
     file: 'build/main.js',
     format: 'iife',
     name: 'Bot',
 		sourcemap: true
-  }
+  },
+	plugins: [
+		resolve({
+			browser: true
+		}),
+		ignore(['fs', 'buffer'])
+	]
 };

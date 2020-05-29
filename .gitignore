@@ -9,3 +9,6 @@ token.json
 
 # Source maps (I guess we can include it later? But the file looks fat to me lol)
 build/*.map
+
+# Storage for Node from src/utils/storage.js
+node-storage

@@ -36,12 +36,13 @@ function sh ({ unparsedArgs, reply }) {
 }
 
 function get ({ client, unparsedArgs, reply }) {
-	reply('```\n' + JSON.stringify(client.data.get({args:unparsedArgs})) + '\n```')
+	const args = unparsedArgs.split(/\s+/).filter(arg => arg)
+	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```')
 }
 
-function set ({ client, unparsedArgs, reply }) {
-	unparsedArgs = unparsedArgs.split(/\s+/)
-	client.data.set({args:unparsedArgs.slice(1)}, unparsedArgs[0])
+async function set ({ client, unparsedArgs, reply }) {
+	const [value, ...args] = unparsedArgs.split(/\s+/)
+	await client.data.set({args}, value)
 	reply('success')
 }
 

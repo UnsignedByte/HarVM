@@ -18,7 +18,7 @@ export function set ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs 
 		aliases.delete(aliasName)
 		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`)
 	}
-	saveAliases()
+	return saveAliases()
 }
 
 export default function help ({ reply }) {
