@@ -522,6 +522,17 @@ const builtInValidators = {
  * @returns {*}
  */
 
+/**
+ * An argument parser inspired by Bash. Most of the information about the parser
+ * can be found in that of `parseBashlike` and OptionType.
+ *
+ * @param {?(OptionType[] | string)} [optionTypes] - The possible options for
+ * the parser. Alternatively, you can give `null` and it'll return the result of
+ * `parseBashlike` directly, or 'expect-all' for something similar but all
+ * options expect values.
+ * @returns {Parser<Object<string, *>>} - An object map of option names to
+ * transformed values.
+ */
 function bashlikeArgumentParser (optionTypes = null) {
 	const expectsNextValue = optionTypes === 'expect-all' ? null : new Set()
 	if (Array.isArray(optionTypes)) {
@@ -529,7 +540,9 @@ function bashlikeArgumentParser (optionTypes = null) {
 			const { name, aliases = [], validate, transform, aliasesOnly = false } = optionType
 			if (validate) {
 				if (!aliasesOnly) {
-					// Probably want name top priority
+					// `unshift` puts the name as the first item so that when it later
+					// gets the option value by looping through the array of aliases,
+					// it'll check the name first, thus giving it higher priority.
 					aliases.unshift(name)
 				}
 				for (const alias of aliases) {
@@ -540,6 +553,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 					}
 				}
 			} else if (aliases.includes('...')) {
+				// Since the default validate function is isBoolean, it'll always fail for something like '...'.
 				console.warn('A `...` option does not have a validate function. You probably might want to add `, validate: \'isArray\'`.')
 			}
 			if (typeof validate !== 'function') {
@@ -567,6 +581,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 				transform,
 				optional = false
 			} of optionTypes) {
+				// Get the option value by checking each alias.
 				let value
 				for (const alias of aliases) {
 					if (options[alias] !== undefined) {
@@ -585,7 +600,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 				}
 				if (validate(value, data)) {
 					validatedOptions[name] = transform ? transform(value, data) : value
-				} else  if (!optional) {
+				} else if (!optional) {
 					throw new Error(`Option "${name}" did not pass validation.`)
 				}
 			}
