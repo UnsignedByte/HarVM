@@ -21,7 +21,7 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
 						.toString('base64')
 						.replace(/\//g, '_')
 						.replace(/\+/g, '-')
-				}/`, storageFolder)
+				}.json`, storageFolder)
 			}
 
 			await fs.mkdir(storageFolder)
