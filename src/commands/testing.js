@@ -1,4 +1,5 @@
 import { simpleArgumentParser, bashlikeArgumentParser } from '../utils/parsers.js'
+import * as resolve from '../utils/client-resolve.js'
 
 function collect ({ client, msg, reply }) {
 	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})))
@@ -18,7 +19,7 @@ function simple ({ unparsedArgs, reply }) {
 	if (args) {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 	} else {
-		reply('Your arguments should be in the form ' + parser.syntax
+		reply('Your arguments should be in the form ' + parser
 			.map(option => `\`${option}\``)
 			.join(' or '))
 	}
@@ -32,6 +33,30 @@ function sh ({ unparsedArgs, reply }) {
 	} catch (err) {
 		// Don't need stack trace I think
 		return err.message
+	}
+}
+
+const userParser = simpleArgumentParser({
+	member: 'member <member>'
+})
+function user ({ msg, unparsedArgs, trace, reply }) {
+	const args = userParser.parse(unparsedArgs)
+	if (args) {
+		switch (args.type) {
+			case 'member': {
+				const member = resolve.member(msg, args.member)
+				if (member) {
+					reply(`Your displayHexColor is ${member.displayHexColor}.`)
+				} else {
+					return {
+						message: `I don't know to whom "${args.member}" refers.`,
+						trace
+					}
+				}
+			}
+		}
+	} else {
+		return { message: 'Invalid syntax.', trace }
 	}
 }
 
@@ -50,5 +75,14 @@ function main ({ reply, unparsedArgs }) {
 	reply('hi```\n' + unparsedArgs + '\n```')
 }
 
-export { collect, args, data, get, set, simple, sh }
+export {
+	collect,
+	args,
+	data,
+	get,
+	set,
+	simple,
+	sh,
+	user
+}
 export default main

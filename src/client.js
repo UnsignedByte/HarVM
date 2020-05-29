@@ -89,6 +89,7 @@ export default async function main (token, Discord) {
 			temp: context.temp,
 			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
+			trace: context.trace,
 			// Is this a good idea? lol
 			run: command => {
 				// Clone `trace` lol
