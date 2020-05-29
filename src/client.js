@@ -21,10 +21,13 @@ export default async function main (token, Discord) {
 	}
 
   client.on('ready', () => {
+		if (typeof client.prefix !== 'string') {
+			client.prefix = new RegExp(`^<@!?${client.user.id}>`)
+		}
     console.log('ready')
   })
 
-	const commandParser = /^(\w+)(?:\s+(\w+))?/
+	const commandParser = /^\s*(\w+)(?:\s+(\w+))?/
 
 	// TODO: We can make this fancier by making a standard embed response thing
 	function reply (msg, message, options={}) {
@@ -95,10 +98,24 @@ export default async function main (token, Discord) {
 		})
   }
 
+	function removePrefix (message) {
+		const prefix = client.prefix
+		if (typeof prefix === 'string') {
+			if (message.startsWith(prefix)) return message.slice(prefix.length)
+		} else if (prefix instanceof RegExp) {
+			const match = message.match(prefix)
+			if (match) {
+				return message.slice(match[0].length)
+			}
+		}
+		return null
+	}
+
   client.on('message', async msg => {
     if (!msg.author.bot) {
-      if (msg.content.startsWith(client.prefix)) {
-				const error = await runCommand(msg.content.slice(client.prefix.length), {
+			const command = removePrefix(msg.content)
+      if (command !== null) {
+				const error = await runCommand(command, {
 					msg,
 					// `temp` is for storing variables in case we want to do that
 					// in the future, lol
