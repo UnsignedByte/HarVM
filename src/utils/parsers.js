@@ -9,10 +9,72 @@ import { isWhitespace } from './str.js'
 // Will parse arguments as { type: 'sheep', name, colour? }
 // Entries should from highest to lowest priority
 // Returns null if no arguments can be parsed
+
+/**
+ * An argument parser; use `.parse(unparsedArgs, temp?)` to parse unparsed
+ * arguments.
+ * @interface Parser<ParserOutput>
+ */
+
+/**
+ * Returns a human-readable string for command documentation.
+ * @function Parser#toString
+ * @returns {string}
+ */
+
+/**
+ * Parses a string of raw arguments from the user into a fancy object that a
+ * command can use.
+ * @function Parser#parse
+ * @param {string} unparsedArgs - A raw string of the arguments for the command
+ * to be parsed.
+ * @param {Map<string, string>} data - A map containing the temporary script
+ * session variables for the command. This could be used for substituting
+ * variable values, for example.
+ * @returns {ParserOutput}
+
+/**
+ * The output of the simple argument parser. It maps the names of arguments to
+ * string values.
+ * @typedef SimpleParserOutput
+ * @type {Object<string, string>}
+ * @property {string} type - The ID of the possible parsing. This is the key of
+ * the key-value pair in the object that is passed into `simpleArgumentParser`.
+ */
+
+/**
+ * A simple argument parser inspired by Minecraft commands. It supports multiple
+ * possible argument parsings. and keywords to distinguish between them. When
+ * specifying the syntax for a possible parsing, <angle brackets> are used to
+ * denote required arguments, [square brackets] are used to denote optional
+ * arguments, and keywords are unmarked.
+ *
+ * Keywords may only contain letters, numbers, and underscores (a "word"). When
+ * calling the command, arguments can be a word or a string in double quotes
+ * with backslashes to escape. Note that strings do not support variable
+ * substitution; however, they do support more sophisticated escape sequences
+ * because they are parsed using `JSON.parse`. If none of the possible parsings
+ * match, the parser will return null.
+ *
+ * @example
+ * const parser = simpleArgumentParser({
+ * 	apple: 'apple <name> [colour]',
+ * 	banana: 'banana <name> [colour]'
+ * })
+ * parser.parse('apple Billy red') // { type: 'apple', name: 'Billy', colour: 'red' }
+ * parser.parse('banana "Leuf Munkler"') // { type: 'banana', name: 'Leuf Munkler' }
+ * parser.parse('carrot Ovinus white') // null
+ *
+ * @param {Object<string, string>} rawOptions - An object map of a possible
+ * argument parsings. The keys should be in order of precedence, from top to
+ * lowest priority.
+ * @returns {Parser<?SimpleParserOutput>}
+ */
 function simpleArgumentParser (rawOptions) {
 	const options = Object.entries(rawOptions).map(([name, option]) => {
 		return {
 			name,
+			// Parse and validate the argument syntax
 			syntax: option.split(/\s+/).map(argument => {
 				let match
 				match = argument.match(/^(\w+)$/)
@@ -28,26 +90,37 @@ function simpleArgumentParser (rawOptions) {
 	return {
 		toString: () => Object.values(rawOptions),
 		parse: unparsedArgs => {
-			// Unnecessarily complicated
+			// Unnecessarily complicated; splits the unparsed arguments into an array
+			// of "words" (see the function description) or strings.
 			const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
+				// Parse strings using JSON.parse.
 				.map(match => match[0][0] === '"' ? JSON.parse(match[0]) : match[0])
 			// Omg an obscure JavaScript label
 			mainLoop:
+			// Attempt to match the tokens using each possible parsing until there is
+			// a match.
 			for (const { name, syntax } of options) {
+				// The output
 				const data = { type: name }
 				let success = true
 				let i = 0
 				for (let j = 0; j < syntax.length; j++) {
 					const argument = syntax[j]
+					// Are there insufficient tokens?
 					if (i >= tokens.length) {
-						if (argument.type === 'optional') {
-							break
-						} else {
+						// Maybe the rest of the arguments are optional. However, if not,
+						// then there isn't a match, so let's try the next possibility.
+						if (argument.type !== 'optional') {
 							continue mainLoop
 						}
 					}
+					// `continue mainLoop` means that the match has failed, so it'll
+					// attempt the next possible parsing.
+					// `i++` means that the current token has passed so far, so it'll
+					// check the next token too.
 					switch (argument.type) {
 						case 'keyword':
+							// The current token should match the keyword exactly.
 							if (tokens[i] === argument.value) {
 								i++
 							} else {
@@ -55,25 +128,36 @@ function simpleArgumentParser (rawOptions) {
 							}
 							break
 						case 'required':
+							// Store the token as the argument value
 							data[argument.name] = tokens[i]
 							i++
 							break
 						case 'optional':
-							// Test for the special case such as when the rule is `[optional] keyword`
-							// and the user gives "keyword"; it should match the keyword and skip
-							// optional. However, "keyword keyword"'s first keyword should be
-							// used for the optional
+							// This is so complicated because it's looking ahead to check to
+							// next syntax element. If it's a keyword that would match the
+							// current token, and the next token wouldn't match the keyword,
+							// then the current token was probably meant for the keyword
+							// rather than this optional argument; in that case, the optional
+							// argument is skipped.
+							// For example, "tp [target] to <destination>" parsing "tp to
+							// Billy" should not be considered invalid just because "to" is
+							// considered as the target, thus making "Billy" not match the
+							// keyword "to".
 							if (!(syntax[j + 1] && syntax[j + 1].type === 'keyword' &&
 								syntax[j + 1].value !== tokens[i + 1] && syntax[j + 1].value === tokens[i])) {
+								// Store the token as the argument value
 								data[argument.name] = tokens[i]
 								i++
 							}
 							break
 					}
 				}
+				// If there are extra tokens, then that shouldn't be considered a match.
 				if (i < tokens.length) continue
+				// Otherwise, the possible parsing has matched!
 				return data
 			}
+			// The tokens didn't match any of the possible parsings, so it failed.
 			return null
 		}
 	}
