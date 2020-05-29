@@ -97,7 +97,8 @@ function simpleArgumentParser (rawOptions) {
 				let i = 0
 
 				/**
-				 * @type {number} The index of the current syntax argument or keyword.
+				 * The index of the current syntax argument or keyword.
+				 * @type {number}
 				 */
 				for (let j = 0; j < syntax.length; j++) {
 					const argument = syntax[j]
@@ -199,42 +200,115 @@ function simpleArgumentParser (rawOptions) {
  * a value to follow it.
  * @param {Map<string, string>} [data] - A map of temporary script variable
  * values to use for variable substitution.
- * @return {Object<string, (string | boolean)>} - An object map between argument
+ * @return {Object<string, (string[] | string | boolean)>} - An object map between argument
  * names and their string values. If the argument doesn't expect a value to
  * follow it (according to the `haveArgs` parameter), the value will be `true`
  * instead.
  */
 function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
+	/**
+	 * An object in which the parsed options will be stored.
+	 * @type {Object<string, (string[] | string | boolean)>}
+	 */
 	const options = { '...': [] }
-	let optionType = null // 'single' | 'double' | 'rest' | null
-	let inString = null // '"' | '\'' | '`' | null
+
+	/**
+	 * The "mode" of the parser; it's in one of three states:
+	 * null - The parser is currently parsing non-option values. This is the
+	 * default/starting state.
+	 * 'single' - The parser is currently parsing options after a single hyphen.
+	 * 'double' - The parser is currently parsing options after two hyphens.
+	 * 'rest' - The parser is parsing all the characters after a lone --.
+	 * @type {?string}
+	 */
+	let optionType = null
+
+	/**
+	 * Whether the parser is inside a string, and what character will close the
+	 * string (either '\'', '"', or '`'). If null, then the parser is not inside
+	 * the string.
+	 * @type {?string}
+	 */
+	let inString = null
+
+	/**
+	 * For string parsing: whether the next character should be escaped. Escaping
+	 * means that the next character will be considered part of the string
+	 * regardless of its normal meaning.
+	 * @type {boolean}
+	 */
 	let escapeNext = false
+
+	/**
+	 * The purpose of `currentToken` depends on the values of `optionType` (the
+	 * mode of the parser) and `inString`, but generally it stores the currently
+	 * parsed string of characters. In the default optionType = null mode,
+	 * `currentToken` contains the current unquoted "word" to be added to the "..."
+	 * array. In the optionType = 'double' mode, it contains the option name.
+	 * Inside a string, it contains the parsed string data.
+	 * @type {string}
+	 */
 	let currentToken = ''
-	let expectValueNext = null // Otherwise is the name of the option
+
+	/**
+	 * This has the name of the option that expects a value after it. This is used
+	 * for storing that next value in `options` by the option name. Most of the
+	 * time it'll probably be null, which means the currently parsed "word" or
+	 * string is not meant to be the value of an option.
+	 * @type {?string}
+	 */
+	let expectValueNext = null
+
+	/**
+	 * This variable is rather abstract. It's only used inside strings, and most
+	 * of the time, it is null. However, when a string encounters an unescaped '$'
+	 * character, it'll set this to the number 1. Then, if it encounters an
+	 * opening parenthesis, '(', it'll set this to an empty string to store the
+	 * name of the variable to be substituted. You can see how it works below.
+	 * @type {?(number | string)}
+	 */
 	let variableSubst = null // null | 1 | '' ... (1 means it has found a '$')
+
 	for (const char of raw) {
 		if (inString) {
+			// If `variableSubst` is 1, that means that the previous character was an
+			// unescaped '$'.
 			if (variableSubst === 1) {
 				if (char === '(') {
+					// Begin determining the name of the variable to be substituted
 					variableSubst = ''
 					continue
 				} else {
+					// That '$' was a false alarm, so add it to the string and parse this
+					// character normally.
 					currentToken += '$'
 					variableSubst = null
 				}
 			}
 			if (variableSubst !== null) {
+				// This means that it's currently determining the name of a variable
+				// inside a $(variableName) expression
 				if (char === ')') {
+					// Get the value of the variable and add it to the string.
 					const value = data.get(variableSubst)
 					currentToken += value === undefined ? '' : value + ''
 					variableSubst = null
 				} else {
+					// Continue collecting the characters for the name of the variable
 					variableSubst += char
 				}
 			} else if (escapeNext) {
+				// The previous character was an unescaped backslash; this prevents the
+				// later conditions from running, thereby escaping the character from
+				// its normal behaviour in the string.
+				// Note that there's no special escape sequences, so '\n' becomes 'n'.
 				currentToken += char
 				escapeNext = false
 			} else if (char === inString) {
+				// If the character is the same as the quotation mark that started the
+				// string, then the string is to be closed. If the string is the value
+				// of an option, store it as such; otherwise, it is added to the "..."
+				// array.
 				inString = null
 				if (expectValueNext) {
 					options[expectValueNext] = currentToken
@@ -248,9 +322,13 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 			} else if (char === '$') {
 				variableSubst = 1
 			} else {
+				// An ordinary character of a string
 				currentToken += char
 			}
 		} else if (optionType === null) {
+			// Parsing tokens that aren't option names, such as:
+			// apple -banana --car danny "elephant" ferry -- garry
+			// ^^^^^               ^^^^^            ^^^^^
 			if (char === '-') {
 				if (currentToken) throw new SyntaxError(`Required space before option (was parsing "${currentToken}").`)
 				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
@@ -260,6 +338,10 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 				inString = char
 			} else if (isWhitespace(char)) {
 				if (currentToken) {
+					// If `currentToken` isn't empty, then there were non-whitespace
+					// characters previously. This means that the currently parsed token
+					// is complete, and it can be stored the same way a finished string is
+					// (see above).
 					if (expectValueNext) {
 						options[expectValueNext] = currentToken
 						expectValueNext = null
@@ -269,29 +351,42 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 					currentToken = ''
 				}
 			} else {
+				// This is actually very forgiving; characters other than a hyphen,
+				// quotation mark, or whitespace don't need to be quoted.
 				currentToken += char
 			}
 		} else if (optionType === 'single') {
+			// Single hyphen options are for single letter option names, which allow
+			// them to be grouped together like "-cat" for "-c -a -t". To prevent this
+			// behaviour, use double hyphens.
 			if (char === '-') {
+				// If there's another hyphen after the first hyphen, it's probably for
+				// a double hyphen option (eg "--cat").
 				if (expectValueNext) throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
-				// A side effect is that you can do '-wow-eee'
-				// which is the same as -w -o -w --eee
-				// Not ideal but I think it's fine.
+				// A side effect of this is that you can do '-wow-eee', which is the
+				// same as "-w -o -w --ee"e. Not ideal but I think it's fine.
 				optionType = 'double'
 			} else if (isWhitespace(char)) {
-				// Also, '-' is ok and does nothing. Again, not ideal, but tolerable.
+				// Note that parsing simply "-" is valid but ignored.
 				optionType = null
 			} else if (expectValueNext) {
+				// If some previous option in the group expects a value but there's
+				// still another option anyways, then that is a PROBLEM.
 				throw new SyntaxError(`Option "${expectValueNext}" expects a value.`)
 			} else if (!haveArgs || haveArgs.has(char)) {
+				// Note whether the option expects a value next.
 				expectValueNext = char
 			} else {
+				// Mark the option as "present".
 				options[char] = true
 			}
 		} else if (optionType === 'double') {
+			// For double hyphened options, like "--cat". It also deals with "--".
 			if (isWhitespace(char)) {
 				optionType = null
 				if (currentToken) {
+					// Note the option the same way it is done for single hyphen options
+					// (see above).
 					if (!haveArgs || haveArgs.has(currentToken)) {
 						expectValueNext = currentToken
 					} else {
@@ -299,20 +394,26 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 					}
 					currentToken = ''
 				} else {
-					// '--'
+					// "--"
 					optionType = 'rest'
-					// It's possible for '----' to conflict with '--' but whatever
+					// Note that it's possible for the value of '----' to be overridden by '--',
+					// but whatever.
 					options['--'] = ''
 				}
 			} else {
 				currentToken += char
 			}
 		} else if (optionType === 'rest') {
+			// These are the characters after a "--".
+			// In this case, `expectValueNext` is false at first until there is no
+			// more whitespace. This is to trim the whitespace after a "--" by
+			// ignoring the initial whitespace.
 			if (expectValueNext || !isWhitespace(char)) {
 				if (!expectValueNext) expectValueNext = true
 				options['--'] += char
 			}
 		} else {
+			// This shouldn't ever happen, but just in case, I guess.
 			console.error('Invalid state...?', { raw, options, optionType, inString, currentToken, char })
 			throw new Error('Invalid state...?')
 		}
@@ -320,6 +421,9 @@ function parseBashlike (raw = '', haveArgs = new Set(), data = new Map()) {
 	if (inString) {
 		throw new SyntaxError('String was not properly closed.')
 	}
+	// The `currentToken` won't get stored in `options` until it finds whitespace,
+	// but since we've reached the end of the string, there's no more whitespace
+	// to be found. Thus, we must add it to `options` here as well.
 	if (currentToken) {
 		if (optionType === null) {
 			if (expectValueNext) {
