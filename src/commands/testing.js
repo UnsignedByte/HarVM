@@ -37,19 +37,33 @@ function sh ({ unparsedArgs, reply }) {
 }
 
 const userParser = simpleArgumentParser({
-	member: 'member <member>'
+	member: 'member <member>',
+	user: 'user <user>'
 })
-function user ({ msg, unparsedArgs, trace, reply }) {
+function user ({ client, msg, unparsedArgs, trace, reply }) {
 	const args = userParser.parse(unparsedArgs)
 	if (args) {
 		switch (args.type) {
 			case 'member': {
 				const member = resolve.member(msg, args.member)
 				if (member) {
-					reply(`Your displayHexColor is ${member.displayHexColor}.`)
+					reply(`Their displayHexColor is ${member.displayHexColor}.`)
 				} else {
 					return {
 						message: `I don't know to whom "${args.member}" refers.`,
+						trace
+					}
+				}
+			}
+			case 'user': {
+				const user = resolve.user(client, args.user)
+				if (user) {
+					reply(`Their avatar URL is ${
+						user.displayAvatarURL({ dynamic: true, size: 4096, format: 'png' })
+					} (default: ${user.defaultAvatarURL}).`)
+				} else {
+					return {
+						message: `I don't know to whom "${args.user}" refers.`,
 						trace
 					}
 				}
