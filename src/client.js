@@ -1,11 +1,9 @@
-import Discord from "../discord/discord.js"
-
 import * as commands from './commands.js'
 import DataManager from './utils/data_manager.js'
 
-const { Client } = Discord
+export default async function main (token, Discord) {
+	const { Client } = Discord
 
-export default async function main (token) {
   // Create an instance of a Discord client
   const client = new Client()
 

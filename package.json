@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "HarVM shake",
   "main": "src/index.js",
+  "type": "module",
   "scripts": {
-		"build": "rollup -c",
+    "build": "rollup -c",
+    "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-		"watch": "rollup -c --watch"
+    "watch": "rollup -c --watch"
   },
   "repository": {
     "type": "git",

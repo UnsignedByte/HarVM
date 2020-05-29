@@ -5,6 +5,7 @@
 * @Last Modified time: 23:52:35, 24-May-2020
 */
 import './utils/_dom2.js'
+import Discord from "./discord/discord.js"
 import main from "./client.js"
 
 localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/')
