@@ -45,9 +45,9 @@ if (typeof process !== 'undefined' && process.versions && process.versions.node)
 	// Using localForage because it's asynchronous and "better" according to the
 	// Chrome people.
 	ready = import('localforage')
-		.then(localForage => {
-			getItem = key => localForage.getItem(key)
-			setItem = (key, value) => localForage.setItem(key, value)
-			removeItem = key => localForage.removeItem(key)
+		.then(() => {
+			getItem = key => localforage.getItem(key)
+			setItem = (key, value) => localforage.setItem(key, value)
+			removeItem = key => localforage.removeItem(key)
 		})
 }
