@@ -159,11 +159,6 @@ function simpleArgumentParser (rawOptions) {
 	}
 }
 
-// Can parse something like
-// parseBashlike('happy -car cool', ['r'])
-// into { "...": ["happy"], "c": true, "a": true, "r": "cool" }
-// If `haveArgs` is null, then all options will expect values.
-
 /**
  * A helper function for an argument parser inspired by the style of Bash
  * commands. Arguments, also known as options, are denoted using a hyphen for
@@ -196,11 +191,11 @@ function simpleArgumentParser (rawOptions) {
  * }
  *
  * @param {string} [raw] - The raw unparsed argument string from the user.
- * @param {Set<string>} [haveArgs] - A set of all the argument names that expect
- * a value to follow it.
+ * @param {?Set<string>} [haveArgs] - A set of all the argument names that expect
+ * a value to follow it. If null, all options will expect values.
  * @param {Map<string, string>} [data] - A map of temporary script variable
  * values to use for variable substitution.
- * @return {Object<string, (string[] | string | boolean)>} - An object map between argument
+ * @returns {Object<string, (string[] | string | boolean)>} - An object map between argument
  * names and their string values. If the argument doesn't expect a value to
  * follow it (according to the `haveArgs` parameter), the value will be `true`
  * instead.
@@ -470,6 +465,63 @@ const builtInValidators = {
 	isArray: Array.isArray,
 	isString: value => typeof value === 'string'
 }
+
+/**
+ * Describes an option for the bash-like argument parser.
+ * A "presence option" is an option that doesn't expect a value; instead, its
+ * inclusion indicates that its value is true, and its exclusion makes its
+ * value false.
+ *
+ * @example
+ * {
+ * 	name: 'apple',
+ * 	aliases: ['a', 'aple'],
+ * 	validate: value => /\w+/.test(value),
+ * 	transform: value => ({ value }),
+ * 	description: 'Apple name',
+ * 	optional: true,
+ * 	aliasesOnly: true
+ * }
+ *
+ * @typedef OptionType
+ * @property {string} name - The ID of the option that is used in the object map
+ * that the parser returns. This is automatically included in `aliases` unless
+ * `aliasesOnly` is true.
+ * @property {string[]} [aliases] - A list of alternative names that can be used
+ * for the option; this is good for common misspellings and alternative
+ * spellings, and also single letter options for single dash options. This
+ * should also include '...' or '--' for the respective outputs from
+ * `parseBashlike`.
+ * @property {(string | Function)} [validate='isBoolean'] - See below for a more
+ * thorough description. You can pass in a string to refer to one of the
+ * `builtInValidators` (see above) by ID. Omit this for "presence options."
+ * @property {Function} [transform] - See below for a more thorough description.
+ * @property {string} [description] - A description of the option; this is for
+ * the generated help text for the command's options.
+ * @property {boolean} [optional=false] - True if the option can be omitted;
+ * useless for "presence options."
+ * @property {boolean} [aliasesOnly=false] - True if `name` should not be
+ * included in the `aliases` list. This can be used to prevent people from doing `--...`
+ * for a "..." option.
+ */
+
+/**
+ * Validates the option value. If the value is invalid, it'll either throw an
+ * error or simply be omitted if the option is optional.
+ * @function OptionType#validate
+ * @param {(string[] | string | boolean)} value - The parsed value from
+ * `parseBashlike`.
+ * @returns {boolean} - Whether the option value is valid.
+ */
+
+/**
+ * Converts the parsed value into something more usable for the command.
+ * @function OptionType#transform
+ * @param {(string[] | string | boolean)} value - The parsed value from
+ * `parseBashlike`.
+ * @returns {*}
+ */
+
 function bashlikeArgumentParser (optionTypes = null) {
 	const expectsNextValue = optionTypes === 'expect-all' ? null : new Set()
 	if (Array.isArray(optionTypes)) {
@@ -494,7 +546,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 				if (!validate) {
 					// Assume that it's a thing where only the presence matters
 					optionType.validate = builtInValidators.isBoolean
-					optionType.optional = true
+					optionType._presence = true
 				} else if (builtInValidators[validate]) {
 					optionType.validate = builtInValidators[validate]
 				} else {
@@ -523,7 +575,9 @@ function bashlikeArgumentParser (optionTypes = null) {
 					}
 				}
 				if (value === undefined) {
-					if (optional) {
+					if (optionType._presence) {
+						value = false
+					} else if (optional) {
 						continue
 					} else {
 						throw new Error(`Missing option "${name}".`)
@@ -531,7 +585,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 				}
 				if (validate(value, data)) {
 					validatedOptions[name] = transform ? transform(value, data) : value
-				} else if (!optional) {
+				} else  if (!optional) {
 					throw new Error(`Option "${name}" did not pass validation.`)
 				}
 			}
