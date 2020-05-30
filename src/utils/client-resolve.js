@@ -2,7 +2,9 @@
 // it to something useful.
 
 const isSnowflake = /^\d+$/
-const isMention = /\\?<@!?(\d+)>/
+
+// For both user and role mentions because why not
+const isMention = /\\?<@(?:!|&)?(\d+)>/
 
 function getID (input) {
 	if (isSnowflake.test(input)) {
@@ -37,11 +39,11 @@ function member (msg, input) {
 
 	let member = null
 	let id = getID(input)
-	if (id) member = msg.guild.member(id)
+	if (id) member = guild.member(id)
 
 	if (!member) {
 		// Try matching by username/nickname
-		member = msg.guild.members.cache.find(member => {
+		member = guild.members.cache.find(member => {
 			// Possible issue: If someone's nickname is someone else's username, the
 			// former might get matched first.
 			return member.nickname && member.nickname.toLowerCase() === input ||
@@ -58,7 +60,7 @@ function member (msg, input) {
  * nicknames won't work here.
  * @param {Discord.Client} client - The bot client.
  * @param {string} input - User input that may refer to an actual Discord user.
- * @returns {Discord.User}
+ * @returns {?Discord.User}
  */
 function user (client, input) {
 	input = input.toLowerCase()
@@ -68,10 +70,7 @@ function user (client, input) {
 	if (id) user = client.users.resolve(id)
 
 	if (!user) {
-		// Try matching by username/nickname
 		user = client.users.cache.find(user => {
-			// Possible issue: If someone's nickname is someone else's username, the
-			// former might get matched first.
 			return user.username.toLowerCase() === input ||
 				user.tag.toLowerCase() === input
 		})
@@ -80,7 +79,36 @@ function user (client, input) {
 	return user
 }
 
+/**
+ * Identify a role for a guild given its ID, mention, or name.
+ * @param {Discord.Message} msg - The message that triggered the command.
+ * @param {string} input - The user input that may refer to a role.
+ * @returns {?Discord.Role}
+ */
+function role (msg, input) {
+	const { guild } = msg
+	if (!guild) {
+		// The message is in a DM, so there aren't any roles
+		return null
+	}
+
+	input = input.toLowerCase()
+
+	let role = null
+	let id = getID(input)
+	if (id) role = guild.roles.resolve(id)
+
+	if (!role) {
+		role = guild.roles.cache.find(role => {
+			return role.name.toLowerCase() === input
+		})
+	}
+
+	return role
+}
+
 export {
 	member,
-	user
+	user,
+	role
 }

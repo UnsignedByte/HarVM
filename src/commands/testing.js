@@ -38,7 +38,8 @@ function sh ({ unparsedArgs, reply }) {
 
 const userParser = simpleArgumentParser({
 	member: 'member <member>',
-	user: 'user <user>'
+	user: 'user <user>',
+	role: 'role <role>'
 })
 function user ({ client, msg, unparsedArgs, trace, reply }) {
 	const args = userParser.parse(unparsedArgs)
@@ -64,6 +65,17 @@ function user ({ client, msg, unparsedArgs, trace, reply }) {
 				} else {
 					return {
 						message: `I don't know to whom "${args.user}" refers.`,
+						trace
+					}
+				}
+			}
+			case 'role': {
+				const role = resolve.role(msg, args.role)
+				if (role) {
+					reply(`The role's colour is https://sheeptester.github.io/colour/${role.hexColor}`)
+				} else {
+					return {
+						message: `I don't know to what "${args.role}" refers.`,
 						trace
 					}
 				}
