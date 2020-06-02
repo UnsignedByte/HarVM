@@ -579,7 +579,8 @@ function bashlikeArgumentParser (optionTypes = null) {
 				aliases = [],
 				validate,
 				transform,
-				optional = false
+				optional = false,
+				_presence
 			} of optionTypes) {
 				// Get the option value by checking each alias.
 				let value
@@ -590,7 +591,7 @@ function bashlikeArgumentParser (optionTypes = null) {
 					}
 				}
 				if (value === undefined) {
-					if (optionType._presence) {
+					if (_presence) {
 						value = false
 					} else if (optional) {
 						continue
