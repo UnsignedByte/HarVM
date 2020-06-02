@@ -19,10 +19,10 @@ const roleDistributionParser = bashlikeArgumentParser([
 	}
 ])
 
-async function give ({ msg, unparsedArgs, data, trace, reply }) {
+async function give ({ msg, unparsedArgs, env, trace, reply }) {
 	let parsedArgs
 	try {
-		parsedArgs = roleDistributionParser.parse(unparsedArgs, data)
+		parsedArgs = roleDistributionParser.parse(unparsedArgs, env)
 	} catch (err) {
 		return { message: err.message, trace }
 	}
