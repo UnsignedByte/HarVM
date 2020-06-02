@@ -19,7 +19,7 @@ function simple ({ unparsedArgs, reply }) {
 	if (args) {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 	} else {
-		reply('Your arguments should be in the form ' + parser
+		reply('Your arguments should be in the form ' + parser.toString()
 			.map(option => `\`${option}\``)
 			.join(' or '))
 	}
