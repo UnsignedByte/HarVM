@@ -5,12 +5,12 @@ import * as storage from './utils/storage.js'
 export default async function main (token, Discord) {
 	const { Client } = Discord
 
-  // Create an instance of a Discord client
-  const client = new Client()
+	// Create an instance of a Discord client
+	const client = new Client()
 
 	await storage.ready
-  client.prefix = await storage.getItem('[HarVM] prefix')
-  client.data = new DataManager(JSON.parse(await storage.getItem('[HarVM] data'))||{})
+	client.prefix = await storage.getItem('[HarVM] prefix')
+	client.data = new DataManager(JSON.parse(await storage.getItem('[HarVM] data'))||{})
 
 	const aliases = new Map(JSON.parse(await storage.getItem('[HarVM] aliases')) || [])
 	const aliasUtil = {
@@ -20,12 +20,12 @@ export default async function main (token, Discord) {
 		}
 	}
 
-  client.on('ready', () => {
+	client.on('ready', () => {
 		if (typeof client.prefix !== 'string') {
 			client.prefix = new RegExp(`^<@!?${client.user.id}>`)
 		}
-    console.log('ready')
-  })
+		console.log('ready')
+	})
 
 	const commandParser = /^\s*(\w+)(?:\s+(\w+))?/
 
@@ -35,7 +35,7 @@ export default async function main (token, Discord) {
 	}
 
 	// Allows for batch calling in the future
-  async function runCommand (command, context) {
+	async function runCommand (command, context) {
 		context.calls++
 		// We can check if the user has gone over their call limit here
 		const { msg } = context
@@ -86,7 +86,7 @@ export default async function main (token, Discord) {
 			client,
 			unparsedArgs,
 			msg,
-			temp: context.temp,
+			env: context.env,
 			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
 			// Is this a good idea? lol
@@ -96,7 +96,7 @@ export default async function main (token, Discord) {
 				return runCommand(command, { trace: [...trace], ...otherContext })
 			}
 		})
-  }
+	}
 
 	function removePrefix (message) {
 		const prefix = client.prefix
@@ -111,17 +111,17 @@ export default async function main (token, Discord) {
 		return null
 	}
 
-  client.on('message', async msg => {
-    if (!msg.author.bot) {
+	client.on('message', async msg => {
+		if (!msg.author.bot) {
 			const command = removePrefix(msg.content)
-      if (command !== null) {
+			if (command !== null) {
 				const error = await runCommand(command, {
 					msg,
-					// `temp` is for storing variables in case we want to do that
+					// `env` is for storing variables in case we want to do that
 					// in the future, lol
 					// Using a map in case someone uses `__proto__` or something dumb
 					// as a variable name
-					temp: new Map(),
+					env: new Map(),
 					// Keep track of calls (in case it recurses); this way, we can "charge"
 					// people for how many commands they run to discourage complex
 					// computations
@@ -136,7 +136,7 @@ export default async function main (token, Discord) {
 					})
 				// TODO: Probably can make this more sophisticated by indicating that it should
 				// have a red stripe etc
-        if (error) {
+				if (error) {
 					if (typeof error === 'string') {
 						reply(msg, error)
 					} else if (error.runtime) {
@@ -145,9 +145,9 @@ export default async function main (token, Discord) {
 						reply(msg, `A problem occurred:\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
 					}
 				}
-      }
-    }
-  })
+			}
+		}
+	})
 
-  await client.login(token)
+	await client.login(token)
 }

@@ -5,8 +5,8 @@ import { bashlikeArgumentParser } from '../utils/parsers.js'
 const ifParser = bashlikeArgumentParser([
 	{ name: 'values', aliases: ['...'], validate: 'isArray' }
 ])
-function ifCondition ({ unparsedArgs, temp, run }) {
-	const { values } = ifParser.parse(unparsedArgs, temp)
+function ifCondition ({ unparsedArgs, env, run }) {
+	const { values } = ifParser.parse(unparsedArgs, env)
 	for (let i = 0; i < values.length; i += 1) {
 		if (i === values.length - 1) {
 			// If it's the last item in the array, then it's the else code.
