@@ -7,10 +7,10 @@ const setParser = bashlikeArgumentParser([
 	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
 	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
 ])
-function set ({ unparsedArgs, temp }) {
-	const { variable, value } = setParser.parse(unparsedArgs, temp)
+function set ({ unparsedArgs, env }) {
+	const { variable, value } = setParser.parse(unparsedArgs, env)
 	// eg `data set 2 -> a` will set a to 2
-	temp.set(variable, value)
+	env.set(variable, value)
 	// I'm not sure if these functions should log anything. It might be annoying
 	// for batching, but we might also just supress output if batching
 }
@@ -21,11 +21,11 @@ const opParser = bashlikeArgumentParser([
 	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
 	{ name: 'operation', aliases: ['...'], validate: 'isArray', transform: ([op]) => op }
 ])
-function op ({ unparsedArgs, temp }) {
-	const { outputName, operation, varA, varB } = opParser.parse(unparsedArgs, temp)
+function op ({ unparsedArgs, env }) {
+	const { outputName, operation, varA, varB } = opParser.parse(unparsedArgs, env)
 	// eg `data op + -a a -b b -> c` will store a + b in c
-	const a = +temp.get(varA)
-	const b = +temp.get(varB)
+	const a = +env.get(varA)
+	const b = +env.get(varB)
 	let output
 	switch (operation) {
 		case '+':
@@ -47,7 +47,7 @@ function op ({ unparsedArgs, temp }) {
 			output = a ** b
 			break
 	}
-	if (output !== undefined) temp.set(outputName, output)
+	if (output !== undefined) env.set(outputName, output)
 }
 
 const runVarsParser = bashlikeArgumentParser('expect-all')
@@ -72,10 +72,10 @@ const runParser = bashlikeArgumentParser([
 	{ name: 'ignoreError', aliases: ['E'] },
 	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
 ])
-async function runCommand ({ unparsedArgs, run, temp, trace }) {
+async function runCommand ({ unparsedArgs, run, env, trace }) {
 	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
 	// will log 7
-	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, temp)
+	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, env)
 	console.log(commands, withVars, ignoreError)
 	// If `withVars` is a string, there was a problem
 	if (withVars) return { message: withVars, trace }
@@ -88,8 +88,8 @@ async function runCommand ({ unparsedArgs, run, temp, trace }) {
 const logParser = bashlikeArgumentParser([
 	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
 ])
-function log ({ unparsedArgs, temp, reply }) {
-	const { output } = logParser.parse(unparsedArgs, temp)
+function log ({ unparsedArgs, env, reply }) {
+	const { output } = logParser.parse(unparsedArgs, env)
 	return reply(output)
 }
 

@@ -9,13 +9,13 @@ function getIndentLength (line) {
 
 // This should make it more convenient to batch calls by making things
 // syntactic sugar for other things
-export default async function batch ({ unparsedArgs, run, temp, reply }) {
+export default async function batch ({ unparsedArgs, run, env, reply }) {
 	const match = unparsedArgs.match(getCommands)
 	// Should this err?
 	if (!match) return
 	const [, tildeRawCmds, plainRawCmds, storeVarName, storeValue] = match
 	if (storeVarName) {
-		temp.set(storeVarName, JSON.parse(storeValue))
+		env.set(storeVarName, JSON.parse(storeValue))
 		return
 	}
 	const rawCommands = (tildeRawCmds || plainRawCmds).split(/\r?\n/)
