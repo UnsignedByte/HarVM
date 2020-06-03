@@ -1,8 +1,8 @@
-import { bashlikeArgumentParser } from '../utils/parsers.js'
+import { BashlikeArgumentParser } from '../utils/parsers.js'
 import * as resolve from '../utils/client-resolve.js'
 import identity from '../utils/identity.js'
 
-const roleDistributionParser = bashlikeArgumentParser([
+const roleDistributionParser = new BashlikeArgumentParser([
 	{
 		name: 'roles',
 		aliases: ['...'],
