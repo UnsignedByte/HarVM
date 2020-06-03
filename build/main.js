@@ -143,7 +143,14 @@
    * @returns {Parser<?SimpleParserOutput>}
    */
 
+
+
   class SimpleArgumentParser extends Parser {
+  	static argTypes = {
+  		keyword:/^(?<value>\w+)$/,
+  		required:/^(?<class>\w*)<(?<value>\w+)>$/,
+  		optional:/^(?<class>\w*)\[(?<value>\w+)\]$/
+  	}
   	constructor(rawOptions){
   		super();
   		this.rawOptions = rawOptions;
@@ -152,14 +159,12 @@
   				name,
   				// Parse and validate the argument syntax
   				syntax: option.split(/\s+/).map(argument => {
-  					let match;
-  					match = argument.match(/^(\w+)$/);
-  					if (match) return { type: 'keyword', value: match[1] }
-  					match = argument.match(/^<(\w+)>$/);
-  					if (match) return { type: 'required', name: match[1] }
-  					match = argument.match(/^\[(\w+)\]$/);
-  					if (match) return { type: 'optional', name: match[1] }
-  					throw new Error(`Invalid syntax: ${argument} is neither <required>, [optional], nor a keyword`)
+  					// loop through all argTypes and try to match each
+  					for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
+  						let match = reg.exec(argument);
+  						if (match) return Object.assign({type:type}, match.groups);
+  					}
+  					throw new Error(`Invalid syntax: ${argument} is not a valid argument type`)
   				})
   			}
   		});
