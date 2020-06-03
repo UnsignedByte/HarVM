@@ -593,29 +593,30 @@ class BashlikeArgumentParser extends Parser{
 		return options
 	}
 	parse(unparsedArgs, data){
-		const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, data)
-		if (!Array.isArray(this.optionTypes)) return options
-		const validatedOptions = {}
-		for (const {
-			name,
-			aliases = [],
-			validate,
-			transform,
-			optional = false
-		} of this.optionTypes) {
-			// Get the option value by checking each alias.
-			let value
-			for (const alias of aliases) {
-				if (options[alias] !== undefined) {
-					value = options[alias]
-					break
-				}
-			}
-			if (value === undefined) {
-				if (optionType._presence) {
-					value = false
-				} else if (optional) {
-					continue
+    const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, data)
+    if (!Array.isArray(this.optionTypes)) return options
+    const validatedOptions = {}
+    for (const {
+      name,
+      aliases = [],
+      validate,
+      transform,
+      optional = false,
+      _presence
+    } of this.optionTypes) {
+      // Get the option value by checking each alias.
+      let value
+      for (const alias of aliases) {
+        if (options[alias] !== undefined) {
+          value = options[alias]
+          break
+        }
+      }
+      if (value === undefined) {
+        if (_presence) {
+          value = false
+        } else if (optional) {
+          continue
 				} else {
 					throw new Error(`Missing option "${name}".`)
 				}

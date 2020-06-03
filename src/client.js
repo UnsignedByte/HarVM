@@ -27,7 +27,7 @@ export default async function main (token, Discord) {
 		console.log('ready')
 	})
 
-	const commandParser = /^\s*(\w+)(?:\s+(\w+))?/
+	const commandParser = /^(\s*\w+)(?:\s+(\w+))?/
 
 	// TODO: We can make this fancier by making a standard embed response thing
 	function reply (msg, message, options={}) {
@@ -46,7 +46,8 @@ export default async function main (token, Discord) {
 				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
 			}
 		}
-		const [matched, commandName, subCommandName] = match
+		const [matched, rawCommandName, subCommandName] = match
+		const commandName = rawCommandName.trim()
 		let commandFn, unparsedArgs
 		const commandGroup = commands[commandName]
 		if (commandGroup) {
@@ -58,7 +59,7 @@ export default async function main (token, Discord) {
 				context.trace.unshift(`${commandName}/${subCommandName}`)
 			} else if (commandGroup.default) {
 				commandFn = commandGroup.default
-				unparsedArgs = command.slice(commandName.length).trim()
+				unparsedArgs = command.slice(rawCommandName.length).trim()
 				context.trace.unshift(`${commandName}/@default`)
 			} else {
 				return {
@@ -89,6 +90,7 @@ export default async function main (token, Discord) {
 			env: context.env,
 			reply: (...args) => reply(msg, ...args),
 			aliasUtil,
+			trace: context.trace,
 			// Is this a good idea? lol
 			run: command => {
 				// Clone `trace` lol
