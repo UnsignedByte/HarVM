@@ -75,13 +75,20 @@ class Parser{
 
 class SimpleArgumentParser extends Parser {
 	static argTypes = {
-		keyword:/^(?<value>\w+)$/,
-		required:/^(?<class>\w*)<(?<value>\w+)>$/,
-		optional:/^(?<class>\w*)\[(?<value>\w+)\]$/
+		keyword:/^(?<name>\w+)$/,
+		required:/^(?<class>\w*)<(?<name>\w+)>$/,
+		optional:/^(?<class>\w*)\[(?<name>\w+)\]$/
 	}
-	constructor(rawOptions){
+	static builtInDataTypes = {
+		'': value => value, //default (no class)
+		bool: value => {let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value); return v!==null?v.groups.t !== undefined:undefined},
+		int: value => parseInt(value)||undefined,
+		float: value => parseFloat(value)||undefined
+	}
+	constructor(rawOptions, dataTypes={}){
 		super();
 		this.rawOptions = rawOptions;
+		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
 		this.options = Object.entries(rawOptions).map(([name, option]) => {
 			return {
 				name,
@@ -105,7 +112,7 @@ class SimpleArgumentParser extends Parser {
 	parse(unparsedArgs, env){
 		// Unnecessarily complicated; splits the unparsed arguments into an array
 		// of "words" (see the function description) or strings.
-		const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
+		const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|[^\s]+/g)]
 			// Parse strings using JSON.parse.
 			.map(match => match[0][0] === '"' ? JSON.parse(match[0]) : match[0])
 		// Omg an obscure JavaScript label
@@ -125,6 +132,7 @@ class SimpleArgumentParser extends Parser {
 			 */
 			for (let j = 0; j < syntax.length; j++) {
 				const argument = syntax[j]
+				console.log(argument);
 				// Are there insufficient tokens?
 				if (i >= tokens.length) {
 					// Maybe the rest of the arguments are optional. However, if not,
@@ -140,16 +148,11 @@ class SimpleArgumentParser extends Parser {
 				switch (argument.type) {
 					case 'keyword':
 						// The current token should match the keyword exactly.
-						if (tokens[i] === argument.value) {
+						if (tokens[i] === argument.name) {
 							i++
 						} else {
 							continue mainLoop
 						}
-						break
-					case 'required':
-						// Store the token as the argument value
-						data[argument.name] = tokens[i]
-						i++
 						break
 					case 'optional':
 						// This is so complicated because it's looking ahead to check to
@@ -162,13 +165,18 @@ class SimpleArgumentParser extends Parser {
 						// Billy" should not be considered invalid just because "to" is
 						// considered as the target, thus making "Billy" not match the
 						// keyword "to".
-						if (!(syntax[j + 1] && syntax[j + 1].type === 'keyword' &&
-							syntax[j + 1].value !== tokens[i + 1] && syntax[j + 1].value === tokens[i])) {
-							// Store the token as the argument value
-							data[argument.name] = tokens[i]
-							i++
+						if (syntax[j + 1] && syntax[j + 1].type === 'keyword' &&
+							syntax[j + 1].name !== tokens[i + 1] && syntax[j + 1].name === tokens[i]) {
+							// Do not store
+							break;
 						}
-						break
+						// If it continues, move down to required
+					case 'required':
+						// Store the token as the argument value
+						data[argument.name] = this.dataTypes[argument.class](tokens[i]);
+						if (data[argument.name]===undefined) throw new Error(`Argument \`${argument.name}\` had value \`${tokens[i]}\`, which was not of type \`${argument.class}\`.`)
+						i++;
+						break;
 				}
 			}
 			// If there are extra tokens, then that shouldn't be considered a match.

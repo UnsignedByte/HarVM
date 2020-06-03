@@ -13,7 +13,7 @@ function args ({ unparsedArgs, reply }) {
 	reply('```\n' + unparsedArgs + '\n```')
 }
 
-simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' })
+simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]', alternative: 'keyword <required> [optional]'}, {customClass:value => `LMAO this was ur VALUE ${value}`})
 function simple ({ args, reply }) {
 	if (args) {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
