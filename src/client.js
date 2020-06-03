@@ -1,6 +1,7 @@
 import * as commands from './commands.js'
 import DataManager from './utils/data_manager.js'
 import * as storage from './utils/storage.js'
+import {Parser} from './utils/parsers.js'
 
 export default async function main (token, Discord) {
 	const { Client } = Discord
@@ -86,6 +87,8 @@ export default async function main (token, Discord) {
 		return await commandFn({
 			client,
 			unparsedArgs,
+			//Parse args using the parser for the given command; return undefined if no parser exists
+			get args(){return (commandFn.parser||new Parser()).parse(unparsedArgs, context.env)},
 			msg,
 			env: context.env,
 			reply: (...args) => reply(msg, ...args),

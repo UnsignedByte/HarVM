@@ -2,7 +2,7 @@ import { BashlikeArgumentParser } from '../utils/parsers.js'
 import * as resolve from '../utils/client-resolve.js'
 import identity from '../utils/identity.js'
 
-const roleDistributionParser = new BashlikeArgumentParser([
+give.parser = new BashlikeArgumentParser([
 	{
 		name: 'roles',
 		aliases: ['...'],
@@ -22,7 +22,7 @@ const roleDistributionParser = new BashlikeArgumentParser([
 async function give ({ msg, unparsedArgs, env, trace, reply }) {
 	let parsedArgs
 	try {
-		parsedArgs = roleDistributionParser.parse(unparsedArgs, env)
+		parsedArgs = give.parser.parse(unparsedArgs, env)
 	} catch (err) {
 		return { message: err.message, trace }
 	}

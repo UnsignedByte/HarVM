@@ -73,8 +73,8 @@
   }
 
   class Parser{
-  	parse(){
-  		throw new Error("Abstract method cannot be invoked!");
+  	parse(args, env){
+  		console.warn("Parser is undefined, generic parser being used.");
   	}
 
   	toString(){
@@ -169,7 +169,7 @@
   		return  Object.values(this.rawOptions);
   	}
 
-  	parse(unparsedArgs){
+  	parse(unparsedArgs, env){
   		// Unnecessarily complicated; splits the unparsed arguments into an array
   		// of "words" (see the function description) or strings.
   		const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
@@ -664,42 +664,152 @@
   		}
   		return options
   	}
-  	parse(unparsedArgs, data){
-  		const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, data);
-  		if (!Array.isArray(this.optionTypes)) return options
-  		const validatedOptions = {};
-  		for (const {
-  			name,
-  			aliases = [],
-  			validate,
-  			transform,
-  			optional = false
-  		} of this.optionTypes) {
-  			// Get the option value by checking each alias.
-  			let value;
-  			for (const alias of aliases) {
-  				if (options[alias] !== undefined) {
-  					value = options[alias];
-  					break
-  				}
-  			}
-  			if (value === undefined) {
-  				if (optionType._presence) {
-  					value = false;
-  				} else if (optional) {
-  					continue
+  	parse(unparsedArgs, env){
+      const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, env);
+      if (!Array.isArray(this.optionTypes)) return options
+      const validatedOptions = {};
+      for (const {
+        name,
+        aliases = [],
+        validate,
+        transform,
+        optional = false,
+        _presence
+      } of this.optionTypes) {
+        // Get the option value by checking each alias.
+        let value;
+        for (const alias of aliases) {
+          if (options[alias] !== undefined) {
+            value = options[alias];
+            break
+          }
+        }
+        if (value === undefined) {
+          if (_presence) {
+            value = false;
+          } else if (optional) {
+            continue
   				} else {
   					throw new Error(`Missing option "${name}".`)
   				}
   			}
-  			if (validate(value, data)) {
-  				validatedOptions[name] = transform ? transform(value, data) : value;
+  			if (validate(value, env)) {
+  				validatedOptions[name] = transform ? transform(value, env) : value;
   			} else if (!optional) {
   				throw new Error(`Option "${name}" did not pass validation.`)
   			}
   		}
   		return validatedOptions
   	}
+  }
+
+  // Given the Message object and user input from a command, it'll try to resolve
+  // it to something useful.
+
+  const isSnowflake = /^\d+$/;
+
+  // For both user and role mentions because why not
+  const isMention = /\\?<@(?:!|&)?(\d+)>/;
+
+  function getID (input) {
+  	if (isSnowflake.test(input)) {
+  		// If the input is just an ID
+  		return input
+  	} else {
+  		// If the input is a user mention
+  		let match = input.match(isMention);
+  		if (match) return match[1]
+  	}
+  	return null
+  }
+
+  /**
+   * This should be able to determine the GuildMember from user input. For
+   * example, "\<@!393248490739859458>", "393248490739859458", "moofy-bot",
+   * "moofy-bot#3738", and "Broken Chromebook" (if my nickname is "Broken
+   * Chromebook") should match Moofy.
+   * @param {Discord.Message} msg - The message that triggered the command.
+   * @param {string} input - The user input that may refer to a guild member.
+   * @returns {?Discord.GuildMember} - If the input is valid, it'll return the
+   * guild member object. Otherwise, null.
+   */
+  function member (msg, input) {
+  	const { guild } = msg;
+  	if (!guild) {
+  		// The message is in a DM, so there aren't any guild members
+  		return null
+  	}
+
+  	input = input.toLowerCase();
+
+  	let member = null;
+  	let id = getID(input);
+  	if (id) member = guild.member(id);
+
+  	if (!member) {
+  		// Try matching by username/nickname
+  		member = guild.members.cache.find(member => {
+  			// Possible issue: If someone's nickname is someone else's username, the
+  			// former might get matched first.
+  			return member.nickname && member.nickname.toLowerCase() === input ||
+  				member.user.username.toLowerCase() === input ||
+  				member.user.tag.toLowerCase() === input
+  		});
+  	}
+
+  	return member
+  }
+
+  /**
+   * This is very similar to `member` but it matches a User object. Note that
+   * nicknames won't work here.
+   * @param {Discord.Client} client - The bot client.
+   * @param {string} input - User input that may refer to an actual Discord user.
+   * @returns {?Discord.User}
+   */
+  function user (client, input) {
+  	input = input.toLowerCase();
+
+  	let user = null;
+  	let id = getID(input);
+  	if (id) user = client.users.resolve(id);
+
+  	if (!user) {
+  		user = client.users.cache.find(user => {
+  			return user.username.toLowerCase() === input ||
+  				user.tag.toLowerCase() === input
+  		});
+  	}
+
+  	return user
+  }
+
+  /**
+   * Identify a role for a guild given its ID, mention, or name.
+   * @param {Discord.Message} msg - The message that triggered the command.
+   * @param {string} input - The user input that may refer to a role.
+   * @returns {?Discord.Role}
+   */
+  function role (msg, input) {
+  	const { guild } = msg;
+  	if (!guild) {
+  		// The message is in a DM, so there aren't any roles
+  		return null
+  	}
+
+  	input = input.toLowerCase();
+
+  	let role = null;
+  	let id = getID(input);
+  	if (id) role = guild.roles.resolve(id);
+
+  	if (!role) {
+  		role = guild.roles.cache.find(role => {
+  			return role.name.toLowerCase() === input
+  		});
+  	}
+
+  	return role
   }
 
   function collect ({ client, msg, reply }) {
@@ -714,27 +824,71 @@
   	reply('```\n' + unparsedArgs + '\n```');
   }
 
-  const parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' });
-  function simple ({ unparsedArgs, reply }) {
-  	const args = parser.parse(unparsedArgs);
+  simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' });
+  function simple ({ args, reply }) {
   	if (args) {
   		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```');
   	} else {
-  		// reply('Your arguments should be in the form\n' + parser.options
-  		// 	.map(({name, syntax}) => `\`${name}:${JSON.stringify(syntax)}\``)
-  		// 	.join('\n'))
-  		reply('Your arguments should be in the form\n`' + parser.toString().join('`\n`')+'`');
+  		reply('Your arguments should be in the form\n`' + simple.parser.toString().join('`\n`')+'`');
   	}
   }
 
-  const bashlikeParser = new BashlikeArgumentParser();
-  function sh ({ unparsedArgs, reply }) {
+  sh.parser = new BashlikeArgumentParser();
+  function sh ({ args, reply }) {
   	try {
-  		const args = bashlikeParser.parse(unparsedArgs);
   		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```');
   	} catch (err) {
   		// Don't need stack trace I think
   		return err.message
+  	}
+  }
+
+  user$1.parser = new SimpleArgumentParser({
+  	member: 'member <member>',
+  	user: 'user <user>',
+  	role: 'role <role>'
+  });
+  function user$1 ({ client, msg, args, trace, reply }) {
+  	if (args) {
+  		switch (args.type) {
+  			case 'member': {
+  				const member$1 = member(msg, args.member);
+  				if (member$1) {
+  					reply(`Their displayHexColor is ${member$1.displayHexColor}.`);
+  				} else {
+  					return {
+  						message: `I don't know to whom "${args.member}" refers.`,
+  						trace
+  					}
+  				}
+  			}
+  			case 'user': {
+  				const user$1 = user(client, args.user);
+  				if (user$1) {
+  					reply(`Their avatar URL is ${
+						user$1.displayAvatarURL({ dynamic: true, size: 4096, format: 'png' })
+					} (default: ${user$1.defaultAvatarURL}).`);
+  				} else {
+  					return {
+  						message: `I don't know to whom "${args.user}" refers.`,
+  						trace
+  					}
+  				}
+  			}
+  			case 'role': {
+  				const role$1 = role(msg, args.role);
+  				if (role$1) {
+  					reply(`The role's colour is https://sheeptester.github.io/colour/${role$1.hexColor}`);
+  				} else {
+  					return {
+  						message: `I don't know to what "${args.role}" refers.`,
+  						trace
+  					}
+  				}
+  			}
+  		}
+  	} else {
+  		return { message: 'Invalid syntax.', trace }
   	}
   }
 
@@ -762,6 +916,7 @@
     set: set,
     simple: simple,
     sh: sh,
+    user: user$1,
     'default': main
   });
 
@@ -813,9 +968,9 @@
   	}).join('\n') || 'No aliases created yet.');
   }
 
-  const parser$1 = new SimpleArgumentParser({ main: '<aliasName> [command]' });
+  set$1.parser = new SimpleArgumentParser({ main: '<aliasName> [command]' });
   function set$1 ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
-  	const { aliasName, command } = parser$1.parse(unparsedArgs);
+  	const { aliasName, command } = set$1.parser.parse(unparsedArgs);
   	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
   	if (command) {
   		aliases.set(aliasName, command);
@@ -858,26 +1013,26 @@
 
   // PSUEDO CODE - I would like to implement a more clever argument parsing system in the future for this
 
-  const setParser = new BashlikeArgumentParser([
+  set$2.parser = new BashlikeArgumentParser([
   	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
   	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
   ]);
-  function set$2 ({ unparsedArgs, env }) {
-  	const { variable, value } = setParser.parse(unparsedArgs, env);
+  function set$2 ({ args, env }) {
+  	const { variable, value } = args;
   	// eg `data set 2 -> a` will set a to 2
   	env.set(variable, value);
   	// I'm not sure if these functions should log anything. It might be annoying
   	// for batching, but we might also just supress output if batching
   }
 
-  const opParser = new BashlikeArgumentParser([
+  op.parser = new BashlikeArgumentParser([
   	{ name: 'outputName', aliases: ['>'], validate: 'isWord' },
   	{ name: 'varA', aliases: ['a'], validate: 'isWord' },
   	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
   	{ name: 'operation', aliases: ['...'], validate: 'isArray', transform: ([op]) => op }
   ]);
-  function op ({ unparsedArgs, env }) {
-  	const { outputName, operation, varA, varB } = opParser.parse(unparsedArgs, env);
+  function op ({ args, env }) {
+  	const { outputName, operation, varA, varB } = args;
   	// eg `data op + -a a -b b -> c` will store a + b in c
   	const a = +env.get(varA);
   	const b = +env.get(varB);
@@ -905,14 +1060,14 @@
   	if (output !== undefined) env.set(outputName, output);
   }
 
-  const runVarsParser = new BashlikeArgumentParser('expect-all');
-  const runParser = new BashlikeArgumentParser([
+  runCommand.varsParser = new BashlikeArgumentParser('expect-all');
+  runCommand.parser = new BashlikeArgumentParser([
   	{
   		name: 'withVars',
   		aliases: ['--'],
   		validate: 'isString',
   		transform: (varValues, data) => {
-  			const values = runVarsParser.parse(varValues, data);
+  			const values = runCommand.varsParser.parse(varValues, data);
   			for (const [varName, value] of Object.entries(values)) {
   				if (/\w+/.test(varName)) {
   					data.set(varName, value);
@@ -927,10 +1082,10 @@
   	{ name: 'ignoreError', aliases: ['E'] },
   	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
   ]);
-  async function runCommand ({ unparsedArgs, run, env, trace }) {
+  async function runCommand ({ args, run, env, trace }) {
   	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
   	// will log 7
-  	const { commands, withVars, ignoreError } = runParser.parse(unparsedArgs, env);
+  	const { commands, withVars, ignoreError } = args;
   	console.log(commands, withVars, ignoreError);
   	// If `withVars` is a string, there was a problem
   	if (withVars) return { message: withVars, trace }
@@ -940,11 +1095,11 @@
   	}
   }
 
-  const logParser = new BashlikeArgumentParser([
+  log.parser = new BashlikeArgumentParser([
   	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
   ]);
-  function log ({ unparsedArgs, env, reply }) {
-  	const { output } = logParser.parse(unparsedArgs, env);
+  function log ({ args, env, reply }) {
+  	const { output } = args;
   	return reply(output)
   }
 
@@ -1059,11 +1214,11 @@
 
   // Basically the same as the control blocks in Scratch lol
 
-  const ifParser = new BashlikeArgumentParser([
+  ifCondition.parser = new BashlikeArgumentParser([
   	{ name: 'values', aliases: ['...'], validate: 'isArray' }
   ]);
-  function ifCondition ({ unparsedArgs, env, run }) {
-  	const { values } = ifParser.parse(unparsedArgs, env);
+  function ifCondition ({ args, env, run }) {
+  	const { values } = args;
   	for (let i = 0; i < values.length; i += 1) {
   		if (i === values.length - 1) {
   			// If it's the last item in the array, then it's the else code.
@@ -1082,6 +1237,54 @@
     'if': ifCondition
   });
 
+  var identity = x => x;
+
+  give.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'roles',
+  		aliases: ['...'],
+  		validate: 'isArray'
+  	},
+  	{
+  		name: 'target',
+  		aliases: ['@', 't'],
+  		validate: 'isString'
+  	},
+  	{
+  		name: 'remove',
+  		aliases: ['r']
+  	}
+  ]);
+
+  async function give ({ msg, unparsedArgs, env, trace, reply }) {
+  	let parsedArgs;
+  	try {
+  		parsedArgs = give.parser.parse(unparsedArgs, env);
+  	} catch (err) {
+  		return { message: err.message, trace }
+  	}
+  	const { roles, target, remove } = parsedArgs;
+  	const member$1 = member(msg, target);
+  	if (!member$1) {
+  		return { message: `Could not find the member "${target}"`, trace }
+  	}
+  	const roleObjects = roles.map(role$1 => role(msg, role$1)).filter(identity);
+  	if (!roleObjects.length) {
+  		return { message: `No valid roles were given.`, trace }
+  	}
+  	if (remove) {
+  		await member$1.roles.remove(roleObjects);
+  	} else {
+  		await member$1.roles.add(roleObjects);
+  	}
+  	reply('Success!');
+  }
+
+  var role$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    give: give
+  });
+
   /*
   * @Author: UnsignedByte
   * @Date:   23:47:23, 24-May-2020
@@ -1097,7 +1300,8 @@
     alias: alias,
     data: data$1,
     batch: batch$1,
-    control: control
+    control: control,
+    role: role$1
   });
 
   // Detect Node vs browser
@@ -1235,7 +1439,7 @@
   		console.log('ready');
   	});
 
-  	const commandParser = /^\s*(\w+)(?:\s+(\w+))?/;
+  	const commandParser = /^(\s*\w+)(?:\s+(\w+))?/;
 
   	// TODO: We can make this fancier by making a standard embed response thing
   	function reply (msg, message, options={}) {
@@ -1254,7 +1458,8 @@
   				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
   			}
   		}
-  		const [matched, commandName, subCommandName] = match;
+  		const [matched, rawCommandName, subCommandName] = match;
+  		const commandName = rawCommandName.trim();
   		let commandFn, unparsedArgs;
   		const commandGroup = commands[commandName];
   		if (commandGroup) {
@@ -1266,7 +1471,7 @@
   				context.trace.unshift(`${commandName}/${subCommandName}`);
   			} else if (commandGroup.default) {
   				commandFn = commandGroup.default;
-  				unparsedArgs = command.slice(commandName.length).trim();
+  				unparsedArgs = command.slice(rawCommandName.length).trim();
   				context.trace.unshift(`${commandName}/@default`);
   			} else {
   				return {
@@ -1293,10 +1498,13 @@
   		return await commandFn({
   			client,
   			unparsedArgs,
+  			//Parse args using the parser for the given command; return undefined if no parser exists
+  			get args(){return (commandFn.parser||new Parser()).parse(unparsedArgs, context.env)},
   			msg,
   			env: context.env,
   			reply: (...args) => reply(msg, ...args),
   			aliasUtil,
+  			trace: context.trace,
   			// Is this a good idea? lol
   			run: command => {
   				// Clone `trace` lol

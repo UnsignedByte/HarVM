@@ -1,8 +1,8 @@
 import { isWhitespace } from './str.js'
 
 class Parser{
-	parse(){
-		throw new Error("Abstract method cannot be invoked!");
+	parse(args, env){
+		console.warn("Parser is undefined, generic parser being used.");
 	}
 
 	toString(){
@@ -97,7 +97,7 @@ class SimpleArgumentParser extends Parser {
 		return  Object.values(this.rawOptions);
 	}
 
-	parse(unparsedArgs){
+	parse(unparsedArgs, env){
 		// Unnecessarily complicated; splits the unparsed arguments into an array
 		// of "words" (see the function description) or strings.
 		const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|\w+/g)]
@@ -592,8 +592,8 @@ class BashlikeArgumentParser extends Parser{
 		}
 		return options
 	}
-	parse(unparsedArgs, data){
-    const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, data)
+	parse(unparsedArgs, env){
+    const options = this._parseBashlike(unparsedArgs, this.expectsNextValue, env)
     if (!Array.isArray(this.optionTypes)) return options
     const validatedOptions = {}
     for (const {
@@ -621,8 +621,8 @@ class BashlikeArgumentParser extends Parser{
 					throw new Error(`Missing option "${name}".`)
 				}
 			}
-			if (validate(value, data)) {
-				validatedOptions[name] = transform ? transform(value, data) : value
+			if (validate(value, env)) {
+				validatedOptions[name] = transform ? transform(value, env) : value
 			} else if (!optional) {
 				throw new Error(`Option "${name}" did not pass validation.`)
 			}
@@ -632,6 +632,7 @@ class BashlikeArgumentParser extends Parser{
 }
 
 export {
+	Parser,
 	SimpleArgumentParser,
 	BashlikeArgumentParser
 }

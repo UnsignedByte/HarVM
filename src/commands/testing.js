@@ -13,20 +13,18 @@ function args ({ unparsedArgs, reply }) {
 	reply('```\n' + unparsedArgs + '\n```')
 }
 
-const parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' })
-function simple ({ unparsedArgs, reply }) {
-	const args = parser.parse(unparsedArgs)
+simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', alternative: 'keyword <required> [optional]' })
+function simple ({ args, reply }) {
 	if (args) {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 	} else {
-		reply('Your arguments should be in the form\n`' + parser.toString().join('`\n`')+'`')
+		reply('Your arguments should be in the form\n`' + simple.parser.toString().join('`\n`')+'`')
 	}
 }
 
-const bashlikeParser = new BashlikeArgumentParser()
-function sh ({ unparsedArgs, reply }) {
+sh.parser = new BashlikeArgumentParser()
+function sh ({ args, reply }) {
 	try {
-		const args = bashlikeParser.parse(unparsedArgs)
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 	} catch (err) {
 		// Don't need stack trace I think
@@ -34,13 +32,12 @@ function sh ({ unparsedArgs, reply }) {
 	}
 }
 
-const userParser = simpleArgumentParser({
+user.parser = new SimpleArgumentParser({
 	member: 'member <member>',
 	user: 'user <user>',
 	role: 'role <role>'
 })
-function user ({ client, msg, unparsedArgs, trace, reply }) {
-	const args = userParser.parse(unparsedArgs)
+function user ({ client, msg, args, trace, reply }) {
 	if (args) {
 		switch (args.type) {
 			case 'member': {

@@ -2,11 +2,11 @@
 
 import { BashlikeArgumentParser } from '../utils/parsers.js'
 
-const ifParser = new BashlikeArgumentParser([
+ifCondition.parser = new BashlikeArgumentParser([
 	{ name: 'values', aliases: ['...'], validate: 'isArray' }
 ])
-function ifCondition ({ unparsedArgs, env, run }) {
-	const { values } = ifParser.parse(unparsedArgs, env)
+function ifCondition ({ args, env, run }) {
+	const { values } = args
 	for (let i = 0; i < values.length; i += 1) {
 		if (i === values.length - 1) {
 			// If it's the last item in the array, then it's the else code.

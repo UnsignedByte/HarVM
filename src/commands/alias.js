@@ -6,9 +6,9 @@ export function list ({ aliasUtil: { aliases }, reply }) {
 	}).join('\n') || 'No aliases created yet.')
 }
 
-const parser = new SimpleArgumentParser({ main: '<aliasName> [command]' })
+set.parser = new SimpleArgumentParser({ main: '<aliasName> [command]' })
 export function set ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
-	const { aliasName, command } = parser.parse(unparsedArgs)
+	const { aliasName, command } = set.parser.parse(unparsedArgs)
 	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
 	if (command) {
 		aliases.set(aliasName, command)
