@@ -22,6 +22,7 @@ export default async function main (token, Discord) {
 	}
 
 	client.on('ready', () => {
+		//default prefix
 		if (typeof client.prefix !== 'string') {
 			client.prefix = new RegExp(`^<@!?${client.user.id}>`)
 		}

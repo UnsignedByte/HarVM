@@ -184,9 +184,9 @@
   	parse(unparsedArgs, env){
   		// Unnecessarily complicated; splits the unparsed arguments into an array
   		// of "words" (see the function description) or strings.
-  		const tokens = [...unparsedArgs.matchAll(/"(?:[^"\\]|\\.)*"|[^\s]+/g)]
+  		const tokens = [...unparsedArgs.matchAll(/("(?:[^"\\]|\\.)*")|[^\s]+/g)]
   			// Parse strings using JSON.parse.
-  			.map(match => match[0][0] === '"' ? JSON.parse(match[0]) : match[0]);
+  			.map(match => match[1] ? JSON.parse(match[1]) : match[0]);
   		// Omg an obscure JavaScript label
   		mainLoop:
   		// Attempt to match the tokens using each possible parsing until there is
@@ -1446,6 +1446,7 @@
   	};
 
   	client.on('ready', () => {
+  		//default prefix
   		if (typeof client.prefix !== 'string') {
   			client.prefix = new RegExp(`^<@!?${client.user.id}>`);
   		}
