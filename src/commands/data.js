@@ -1,9 +1,9 @@
 // PSUEDO CODE - I would like to implement a more clever argument parsing system in the future for this
 // This is mostly for batching purposes, which I think will be quite interesting
 
-import { bashlikeArgumentParser } from '../utils/parsers.js'
+import { BashlikeArgumentParser } from '../utils/parsers.js'
 
-const setParser = bashlikeArgumentParser([
+const setParser = new BashlikeArgumentParser([
 	{ name: 'variable', aliases: ['>'], validate: 'isWord' },
 	{ name: 'value', aliases: ['...'], validate: 'isArray', transform: ([value]) => value }
 ])
@@ -15,7 +15,7 @@ function set ({ unparsedArgs, env }) {
 	// for batching, but we might also just supress output if batching
 }
 
-const opParser = bashlikeArgumentParser([
+const opParser = new BashlikeArgumentParser([
 	{ name: 'outputName', aliases: ['>'], validate: 'isWord' },
 	{ name: 'varA', aliases: ['a'], validate: 'isWord' },
 	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
@@ -50,8 +50,8 @@ function op ({ unparsedArgs, env }) {
 	if (output !== undefined) env.set(outputName, output)
 }
 
-const runVarsParser = bashlikeArgumentParser('expect-all')
-const runParser = bashlikeArgumentParser([
+const runVarsParser = new BashlikeArgumentParser('expect-all')
+const runParser = new BashlikeArgumentParser([
 	{
 		name: 'withVars',
 		aliases: ['--'],
@@ -85,7 +85,7 @@ async function runCommand ({ unparsedArgs, run, env, trace }) {
 	}
 }
 
-const logParser = bashlikeArgumentParser([
+const logParser = new BashlikeArgumentParser([
 	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
 ])
 function log ({ unparsedArgs, env, reply }) {

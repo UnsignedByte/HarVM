@@ -1,8 +1,8 @@
 // Basically the same as the control blocks in Scratch lol
 
-import { bashlikeArgumentParser } from '../utils/parsers.js'
+import { BashlikeArgumentParser } from '../utils/parsers.js'
 
-const ifParser = bashlikeArgumentParser([
+const ifParser = new BashlikeArgumentParser([
 	{ name: 'values', aliases: ['...'], validate: 'isArray' }
 ])
 function ifCondition ({ unparsedArgs, env, run }) {
