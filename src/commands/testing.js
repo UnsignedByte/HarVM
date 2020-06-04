@@ -15,7 +15,7 @@ function args ({ unparsedArgs, reply }) {
 
 simple.parser = new SimpleArgumentParser({
 	main: '<required> [optional] keyboard',
-	complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]',
+	complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> customClass<testcustom> [optional]',
 	alternative: 'keyword <required> [optional]'
 }, {
 	customClass: value => `LMAO this was ur VALUE ${value}`

@@ -91,7 +91,18 @@ class SimpleArgumentParser extends Parser {
 		optional:/^(?<class>\w*)\[(?<name>\w+)\]$/
 	}
 	static builtInDataTypes = {
-		'': identity, //default (no class)
+		'': value => { //default (no class given)
+			//if fits number, return this
+			if(/[0-9]+(?:\.[0-9]*)?/.test(value)) return parseFloat(value)
+			//if not, test for bool
+			try{
+				return builtInDataTypes.bool(value)
+			}catch(err){
+				//return string
+				return value;
+			}
+		},
+		string: identity,
 		bool: value => {
 			let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value);
 			return v!==null?v.groups.t !== undefined:SimpleArgumentParser.FAILURE
