@@ -2,11 +2,11 @@
   "name": "harvm",
   "version": "1.0.0",
   "description": "HarVM shake",
-  "main": "src/index.js",
+  "main": "src/node.js",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
-    "start": "node src/index.js",
+    "start": "node src/node.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "rollup -c --watch"
   },

@@ -2,7 +2,7 @@
 * @Author: UnsignedByte
 * @Date:   11:56:39, 25-May-2020
 * @Last Modified by:   UnsignedByte
-* @Last Modified time: 23:05:40, 03-Jun-2020
+* @Last Modified time: 23:29:31, 03-Jun-2020
 */
 
 async function dataManager(name='data'){
@@ -22,7 +22,14 @@ class DataManager {
 			const url = new URL(`../../data/${this.loc}.json`, import.meta.url)
 			// const { promises: fs } = require('fs')
 			const { promises: fs } = await import('fs')
-			this.raw = JSON.parse(await fs.readFile(url, 'utf8'))||{}
+			this.raw = JSON.parse(await fs.readFile(url, 'utf8').catch(err => {
+					// If the file doesn't exist, return null like what localStorage does
+					if (err.code === 'ENOENT') {
+						return null
+					} else {
+						return Promise.reject(err)
+					}
+				}))||{}
 			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw))
 		} else {
 			//if not

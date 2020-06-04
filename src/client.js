@@ -20,12 +20,6 @@ export default async function main (token, Discord) {
 	}
 
 	client.on('ready', () => {
-		//default prefix
-		if (typeof client.data.get({args:['prefix']}) !== 'string') {
-			console.log("hello world!");
-			client.data.set({args:['prefix']}, new RegExp(`^<@!?${client.user.id}>`))
-			client.data.save();
-		}
 		console.log('ready')
 	})
 
@@ -106,13 +100,10 @@ export default async function main (token, Discord) {
 
 	function removePrefix (message) {
 		const prefix = client.data.get({args:['prefix']})
-		if (typeof prefix === 'string') {
-			if (message.startsWith(prefix)) return message.slice(prefix.length)
-		} else if (prefix instanceof RegExp) {
-			const match = message.match(prefix)
-			if (match) {
-				return message.slice(match[0].length)
-			}
+		if (message.startsWith(prefix)) return message.slice(prefix.length)
+		const match = message.match(new RegExp(`^<@!?${client.user.id}>`))
+		if (match) {
+			return message.slice(match[0].length)
 		}
 		return null
 	}
