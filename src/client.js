@@ -1,7 +1,6 @@
 import * as commands from './commands.js'
-import dataManager from './utils/data_manager.js'
-// import * as storage from './utils/storage.js'
-import {Parser} from './utils/parsers.js'
+import DataManager from './utils/data_manager.js'
+import {Parser, ParserError} from './utils/parsers.js'
 
 export default async function main (token, Discord) {
 	const { Client } = Discord
@@ -10,6 +9,7 @@ export default async function main (token, Discord) {
 	const client = new Client()
 
 	client.data = await dataManager();
+	client.commands = Object.keys(commands)
 
 	const aliases = new Map(client.data.get({args:['aliases'],def:[]}))
 	const aliasUtil = {
@@ -74,16 +74,20 @@ export default async function main (token, Discord) {
 			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
 		} else {
 			return {
-				message: `Unknown command \`${command}\`.`,
+				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
 				trace: context.trace
 			}
 		}
-		// Commands can return a string for an error message I guess
-		return await commandFn({
+		let parser
+		const bridge = {
+			Discord,
 			client,
 			unparsedArgs,
 			//Parse args using the parser for the given command; return undefined if no parser exists
-			get args(){return (commandFn.parser||new Parser()).parse(unparsedArgs, context.env)},
+			get args() {
+				if (!parser) parser = commandFn.parser||new Parser()
+				return parser.parse(unparsedArgs, context.env)
+			},
 			msg,
 			env: context.env,
 			reply: (...args) => reply(msg, ...args),
@@ -95,7 +99,26 @@ export default async function main (token, Discord) {
 				const { trace, ...otherContext } = context
 				return runCommand(command, { trace: [...trace], ...otherContext })
 			}
-		})
+		}
+		try {
+			// Commands should return { message, trace } for an error message
+			return await commandFn(bridge)
+		} catch (err) {
+			if (err instanceof ParserError) {
+				return {
+					message: `There was a problem parsing the arguments for the command:\n${
+						err.message
+					}\n\nTo use the command, refer to its syntax:\n${
+						parser.toString()
+					}`,
+					trace: context.trace
+				}
+			} else {
+				const id = Math.random().toString(36).slice(2)
+				console.log(id, err)
+				return { message: err.message, runtime: true, id, trace: context.trace }
+			}
+		}
 	}
 
 	function removePrefix (message) {
@@ -137,7 +160,11 @@ export default async function main (token, Discord) {
 					if (typeof error === 'string') {
 						reply(msg, error)
 					} else if (error.runtime) {
-						reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}`)
+						if (error.trace) {
+							reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
+						} else {
+							reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}`)
+						}
 					} else if (error.trace) {
 						reply(msg, `A problem occurred:\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
 					}

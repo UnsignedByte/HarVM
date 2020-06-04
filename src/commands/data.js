@@ -93,6 +93,10 @@ function log ({ args, env, reply }) {
 	return reply(output)
 }
 
+export default function main ({ reply }) {
+	reply('Usage: data [set|op|run|log] ...')
+}
+
 export {
 	set,
 	op,

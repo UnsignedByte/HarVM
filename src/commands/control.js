@@ -22,6 +22,10 @@ function ifCondition ({ args, env, run }) {
 
 // Could add loops here too, uauau
 
+export default function main ({ reply }) {
+	reply('Usage: control [if] ...')
+}
+
 export {
 	ifCondition as if
 }

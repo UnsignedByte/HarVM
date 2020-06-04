@@ -1,3 +1,5 @@
+import { CODE } from '../utils/str.js'
+
 const getCommands = /^(?:```\w*\r?\n([^]+)\r?\n```|([^=][^]*)|=\s*(\w+)\s*<-\s*(".+"))$/
 const getMultilineName = /^@\s*(\w+)\s*(.*)$/
 const getIndent = /^\s+/
@@ -7,12 +9,37 @@ function getIndentLength (line) {
 	return match ? match[0].length : 0
 }
 
+const commandHelp = `To use \`batch\`, do \`batch\` followed by a code block containing commands, like
+> batch ${CODE}py
+> # Lines starting with a hash (#) will be ignored. This can
+> # be used for comments
+> data set 3 -> three
+> data set 4 -> four
+> data op -a three + -b four -> seven
+> # Lines starting with an at (@) are syntactic sugar for
+> storing multiline strings in a variable.
+> @longString data log "$(longString)"
+> 	Follow @ with a variable name, and the indented lines
+> 	below will be stored in it.
+> 	You can put a command after the variable name, and it
+> 	will run the command after storing the string.
+> # A use of these multiline strings are for blocks of code
+> # in conditionals and loops.
+> @ifTrue control if "true" "batch $(ifTrue)"
+> 	data log "It is true!"
+> ${CODE}`
+
 // This should make it more convenient to batch calls by making things
 // syntactic sugar for other things
-export default async function batch ({ unparsedArgs, run, env, reply }) {
+export default async function batch ({ unparsedArgs, run, env, reply, trace }) {
 	const match = unparsedArgs.match(getCommands)
 	// Should this err?
-	if (!match) return
+	if (!match) {
+		return {
+			message: 'Could not get batch body from arguments.\n\n' + commandHelp,
+			trace
+		}
+	}
 	const [, tildeRawCmds, plainRawCmds, storeVarName, storeValue] = match
 	if (storeVarName) {
 		env.set(storeVarName, JSON.parse(storeValue))
@@ -63,6 +90,12 @@ export default async function batch ({ unparsedArgs, run, env, reply }) {
 			commands.push(...afterSetting)
 		} else if (rawCommand.trim() !== '') {
 			commands.push(rawCommand)
+		}
+	}
+	if (!commands.length) {
+		return {
+			message: 'Batch call contained no commands.\n\n' + commandHelp,
+			trace
 		}
 	}
 	for (const command of commands) {
