@@ -94,7 +94,7 @@ function log ({ args, env, reply }) {
 }
 
 export default function main ({ reply }) {
-	reply('Usage: role [set|op|run|log] ...')
+	reply('Usage: data [set|op|run|log] ...')
 }
 
 export {

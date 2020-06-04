@@ -12,6 +12,7 @@ export default async function main (token, Discord) {
 	await storage.ready
 	client.prefix = await storage.getItem('[HarVM] prefix')
 	client.data = new DataManager(JSON.parse(await storage.getItem('[HarVM] data'))||{})
+	client.commands = Object.keys(commands)
 
 	const aliases = new Map(JSON.parse(await storage.getItem('[HarVM] aliases')) || [])
 	const aliasUtil = {
@@ -80,7 +81,7 @@ export default async function main (token, Discord) {
 			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
 		} else {
 			return {
-				message: `Unknown command \`${command}\`.`,
+				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
 				trace: context.trace
 			}
 		}
