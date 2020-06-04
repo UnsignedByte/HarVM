@@ -1,4 +1,5 @@
 import { isWhitespace } from './str.js'
+import identity from './identity.js'
 
 // Distinguish a parser error from a normal runtime error
 class ParserError extends Error {
@@ -15,7 +16,7 @@ class Parser{
 	}
 
 	toString(){
-		throw new Error("Abstract method cannot be invoked!");
+		return 'The command prefers to keep its function a mystery.'
 	}
 }
 
@@ -90,7 +91,7 @@ class SimpleArgumentParser extends Parser {
 		optional:/^(?<class>\w*)\[(?<name>\w+)\]$/
 	}
 	static builtInDataTypes = {
-		'': value => value, //default (no class)
+		'': identity, //default (no class)
 		bool: value => {
 			let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value);
 			return v!==null?v.groups.t !== undefined:SimpleArgumentParser.FAILURE
@@ -119,7 +120,7 @@ class SimpleArgumentParser extends Parser {
 	}
 
 	toString(){
-		return  Object.values(this.rawOptions);
+		return Object.entries(this.rawOptions).map(([name, raw]) => `${name}: \`${raw}\``).join('\n');
 	}
 
 	parse(unparsedArgs, env){

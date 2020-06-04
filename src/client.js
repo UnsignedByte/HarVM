@@ -84,13 +84,15 @@ export default async function main (token, Discord) {
 				trace: context.trace
 			}
 		}
+		let parser
 		const bridge = {
 			Discord,
 			client,
 			unparsedArgs,
 			//Parse args using the parser for the given command; return undefined if no parser exists
 			get args() {
-				return (commandFn.parser||new Parser()).parse(unparsedArgs, context.env)
+				if (!parser) parser = commandFn.parser||new Parser()
+				return parser.parse(unparsedArgs, context.env)
 			},
 			msg,
 			env: context.env,
@@ -110,7 +112,11 @@ export default async function main (token, Discord) {
 		} catch (err) {
 			if (err instanceof ParserError) {
 				return {
-					message: 'Unable to parse arguments for command:\n' + err.message,
+					message: `There was a problem parsing the arguments for the command:\n${
+						err.message
+					}\n\nTo use the command, refer to its syntax:\n${
+						parser.toString()
+					}`,
 					trace: context.trace
 				}
 			} else {

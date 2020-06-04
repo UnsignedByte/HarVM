@@ -19,14 +19,7 @@ give.parser = new BashlikeArgumentParser([
 	}
 ])
 
-async function give ({ msg, unparsedArgs, env, trace, reply }) {
-	let parsedArgs
-	try {
-		parsedArgs = give.parser.parse(unparsedArgs, env)
-	} catch (err) {
-		return { message: err.message, trace }
-	}
-	const { roles, target, remove } = parsedArgs
+async function give ({ msg, args: { roles, target, remove }, env, trace, reply }) {
 	const member = resolve.member(msg, target)
 	if (!member) {
 		return { message: `Could not find the member "${target}"`, trace }

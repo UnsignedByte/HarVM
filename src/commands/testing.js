@@ -21,21 +21,12 @@ simple.parser = new SimpleArgumentParser({
 	customClass: value => `LMAO this was ur VALUE ${value}`
 })
 function simple ({ args, reply }) {
-	if (args) {
-		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
-	} else {
-		reply('Your arguments should be in the form\n`' + simple.parser.toString().join('`\n`')+'`')
-	}
+	reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 }
 
 sh.parser = new BashlikeArgumentParser()
 function sh ({ args, reply }) {
-	try {
-		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
-	} catch (err) {
-		// Don't need stack trace I think
-		return err.message
-	}
+	reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 }
 
 resolveThing.parser = new SimpleArgumentParser({
@@ -105,6 +96,21 @@ async function resolveThing ({ client, msg, args, trace, reply, Discord }) {
 	}
 }
 
+makeManageRolesRole.parser = new SimpleArgumentParser({
+	main: 'Let us perhaps synthesize a role by the name of <name> with the special and rare ability to manage roles'
+})
+async function makeManageRolesRole ({ msg, args: { name }, reply }) {
+	await msg.guild.roles.create({
+		data: {
+			name,
+			color: 'RANDOM',
+			permissions: ['MANAGE_ROLES']
+		},
+		reason: 'Why not?'
+	})
+	reply('Sure!')
+}
+
 function get ({ client, unparsedArgs, reply }) {
 	const args = unparsedArgs.split(/\s+/).filter(arg => arg)
 	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```')
@@ -128,6 +134,7 @@ export {
 	set,
 	simple,
 	sh,
-	resolveThing as resolve
+	resolveThing as resolve,
+	makeManageRolesRole
 }
 export default main
