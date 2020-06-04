@@ -14,7 +14,11 @@ function isWhitespace (char) {
 	return whitespaceRegex.test(char)
 }
 
+// Too lazy to individually escape each backtick in a template literal.
+const CODE = '```'
+
 export {
 	escapeRegex,
-	isWhitespace
+	isWhitespace,
+	CODE
 }

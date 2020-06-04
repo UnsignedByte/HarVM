@@ -13,31 +13,33 @@ function args ({ unparsedArgs, reply }) {
 	reply('```\n' + unparsedArgs + '\n```')
 }
 
-simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]', alternative: 'keyword <required> [optional]'}, {customClass:value => `LMAO this was ur VALUE ${value}`})
+simple.parser = new SimpleArgumentParser({
+	main: '<required> [optional] keyboard',
+	complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]',
+	alternative: 'keyword <required> [optional]'
+}, {
+	customClass: value => `LMAO this was ur VALUE ${value}`
+})
 function simple ({ args, reply }) {
-	if (args) {
-		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
-	} else {
-		reply('Your arguments should be in the form\n`' + simple.parser.toString().join('`\n`')+'`')
-	}
+	reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
 }
 
 sh.parser = new BashlikeArgumentParser()
 function sh ({ args, reply }) {
-	try {
+	if (args.h || args.help) {
+		reply(sh.parser.toString())
+	} else {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
-	} catch (err) {
-		// Don't need stack trace I think
-		return err.message
 	}
 }
 
-user.parser = new SimpleArgumentParser({
+resolveThing.parser = new SimpleArgumentParser({
 	member: 'member <member>',
 	user: 'user <user>',
-	role: 'role <role>'
+	role: 'role <role>',
+	channel: 'channel <channel> [count]'
 })
-function user ({ client, msg, args, trace, reply }) {
+async function resolveThing ({ client, msg, args, trace, reply, Discord }) {
 	if (args) {
 		switch (args.type) {
 			case 'member': {
@@ -75,10 +77,42 @@ function user ({ client, msg, args, trace, reply }) {
 					}
 				}
 			}
+			case 'channel': {
+				const channel = resolve.channel(msg, args.channel)
+				if (channel) {
+					if (channel instanceof Discord.TextChannel) {
+						const count = +args.count || 1
+						const messages = await channel.messages.fetch({ limit: count })
+						reply(messages.map(msg => `**[${msg.author.tag}]** ${msg.content}`).join('\n'))
+					} else {
+						reply(`that is ${channel.type} channel`)
+					}
+				} else {
+					return {
+						message: `I don't know to what "${args.channel}" refers.`,
+						trace
+					}
+				}
+			}
 		}
 	} else {
 		return { message: 'Invalid syntax.', trace }
 	}
+}
+
+makeManageRolesRole.parser = new SimpleArgumentParser({
+	main: 'Let us perhaps synthesize a role by the name of <name> with the special and rare ability to manage roles'
+})
+async function makeManageRolesRole ({ msg, args: { name }, reply }) {
+	await msg.guild.roles.create({
+		data: {
+			name,
+			color: 'RANDOM',
+			permissions: ['MANAGE_ROLES']
+		},
+		reason: 'Why not?'
+	})
+	reply('Sure!')
 }
 
 function get ({ client, unparsedArgs, reply }) {
@@ -93,7 +127,8 @@ async function set ({ client, unparsedArgs, reply }) {
 }
 
 function main ({ reply, unparsedArgs }) {
-	reply('hi```\n' + unparsedArgs + '\n```')
+	reply('Usage: testing [collect|data|args|simple|sh|resolveThing|makeManageRolesRole|get|set] ...' +
+		'\n```\n' + unparsedArgs + '\n```')
 }
 
 export {
@@ -104,6 +139,7 @@ export {
 	set,
 	simple,
 	sh,
-	user
+	resolveThing as resolve,
+	makeManageRolesRole
 }
 export default main

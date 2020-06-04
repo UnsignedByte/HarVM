@@ -6,27 +6,23 @@ give.parser = new BashlikeArgumentParser([
 	{
 		name: 'roles',
 		aliases: ['...'],
-		validate: 'isArray'
+		validate: 'isArray',
+		description: 'Names of roles to give to TARGET.'
 	},
 	{
 		name: 'target',
 		aliases: ['@', 't'],
-		validate: 'isString'
+		validate: 'isString',
+		description: 'The user to whom the roles should be given.'
 	},
 	{
 		name: 'remove',
-		aliases: ['r']
+		aliases: ['r'],
+		description: 'Remove the specified roles instead of giving.'
 	}
-])
+], 'Give or remove roles from a user.')
 
-async function give ({ msg, unparsedArgs, env, trace, reply }) {
-	let parsedArgs
-	try {
-		parsedArgs = give.parser.parse(unparsedArgs, env)
-	} catch (err) {
-		return { message: err.message, trace }
-	}
-	const { roles, target, remove } = parsedArgs
+async function give ({ msg, args: { roles, target, remove }, env, trace, reply }) {
 	const member = resolve.member(msg, target)
 	if (!member) {
 		return { message: `Could not find the member "${target}"`, trace }
@@ -41,6 +37,10 @@ async function give ({ msg, unparsedArgs, env, trace, reply }) {
 		await member.roles.add(roleObjects)
 	}
 	reply('Success!')
+}
+
+export default function main ({ reply }) {
+	reply('Usage: role [give] ...')
 }
 
 export {

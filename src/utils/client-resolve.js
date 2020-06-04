@@ -4,7 +4,7 @@
 const isSnowflake = /^\d+$/
 
 // For both user and role mentions because why not
-const isMention = /\\?<@(?:!|&)?(\d+)>/
+const isMention = /\\?<(?:@(?:!|&)?|#)(\d+)>/
 
 function getID (input) {
 	if (isSnowflake.test(input)) {
@@ -107,8 +107,37 @@ function role (msg, input) {
 	return role
 }
 
+/**
+ * Identify a channel for a guild given its ID, mention, or name.
+ * @param {Discord.Message} msg - The message that triggered the command.
+ * @param {string} input - The user input that may refer to a channel.
+ * @returns {?Discord.GuildChannel}
+ */
+function channel (msg, input) {
+	const { guild } = msg
+	if (!guild) {
+		// The message is in a DM, so there aren't any roles
+		return null
+	}
+
+	input = input.toLowerCase()
+
+	let channel = null
+	let id = getID(input)
+	if (id) channel = guild.channels.resolve(id)
+
+	if (!channel) {
+		channel = guild.channels.cache.find(channel => {
+			return channel.name.toLowerCase() === input
+		})
+	}
+
+	return channel
+}
+
 export {
 	member,
 	user,
-	role
+	role,
+	channel
 }

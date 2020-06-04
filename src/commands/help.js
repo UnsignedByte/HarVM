@@ -5,8 +5,15 @@
 * @Last Modified time: 00:30:05, 25-May-2020
 */
 
-function main({ reply }){
-	reply("lol, no")
+function commands ({ client: { commands }, reply }) {
+	reply('Commands: ' + commands.map(cmd => `\`${cmd}\``).join(' '))
 }
 
+function main({ reply }){
+	reply('Usage: help [commands]')
+}
+
+export {
+	commands
+}
 export default main
