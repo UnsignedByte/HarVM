@@ -916,6 +916,11 @@
   	reply('success');
   }
 
+  function save({client, reply}){
+  	client.data.save();
+  	reply('saved!');
+  }
+
   function main ({ reply, unparsedArgs }) {
   	reply('hi```\n' + unparsedArgs + '\n```');
   }
@@ -929,6 +934,7 @@
     set: set,
     simple: simple,
     sh: sh,
+    save: save,
     user: user$1,
     'default': main
   });
@@ -1317,72 +1323,39 @@
     role: role$1
   });
 
-  // Detect Node vs browser
-
-  // Apparently this is ok
-  // https://rollupjs.org/guide/en/#how-bindings-work
-  let getItem;
-  let setItem;
-
-  let ready;
-
-  // https://stackoverflow.com/a/31456668
-  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
-  	const storageFolder = new URL('./node-storage/', (document.currentScript && document.currentScript.src || new URL('main.js', document.baseURI).href));
-
-  	ready = Promise.all([Promise.resolve().then(function () { return _empty_module$1; }), Promise.resolve().then(function () { return _empty_module$1; })])
-  		.then(async ([{ promises: fs }, { Buffer }]) => {
-  			function keyToPath (key) {
-  				// https://stackoverflow.com/a/23097961
-  				return new URL(`./${
-					Buffer.from(key)
-						.toString('base64')
-						.replace(/\//g, '_')
-						.replace(/\+/g, '-')
-				}.json`, storageFolder)
-  			}
-
-  			await fs.mkdir(storageFolder)
-  				.catch(err => {
-  					// Only reject if the error isn't about the folder already existing
-  					if (err.code !== 'EEXIST') return Promise.reject(err)
-  				});
-  			getItem = key => fs.readFile(keyToPath(key), 'utf8')
-  				.catch(err => {
-  					// If the file doesn't exist, return null like what localStorage does
-  					if (err.code === 'ENOENT') {
-  						return null
-  					} else {
-  						return Promise.reject(err)
-  					}
-  				});
-  			setItem = (key, value) => fs.writeFile(keyToPath(key), value);
-  		});
-  } else {
-  	// Using localForage because it's asynchronous and "better" according to the
-  	// Chrome people.
-  	ready = Promise.resolve().then(function () { return localforage$1; })
-  		.then(() => {
-  			getItem = key => localforage.getItem(key);
-  			setItem = (key, value) => localforage.setItem(key, value);
-  		});
-  }
-
   /*
   * @Author: UnsignedByte
   * @Date:   11:56:39, 25-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 00:48:46, 26-May-2020
+  * @Last Modified time: 23:05:40, 03-Jun-2020
   */
 
+  async function dataManager(name='data'){
+  	let ret = new DataManager(name);
+  	await ret.init();
+  	return ret;
+  }
+
   class DataManager {
-  	constructor(raw, saveloc='[HarVM] data'){
-  		this.raw = raw;
-  		this.loc = saveloc;
+  	constructor(name){
+  		this.loc = name;
   	}
 
-  	#save = ()=>{
-  		return setItem(this.loc, JSON.stringify(this.raw))
+  	async init(){
+  		if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  			//if using node
+  			const url = new URL(`../../data/${this.loc}.json`, (document.currentScript && document.currentScript.src || new URL('main.js', document.baseURI).href));
+  			// const { promises: fs } = require('fs')
+  			const { promises: fs } = await Promise.resolve().then(function () { return _empty_module$1; });
+  			this.raw = JSON.parse(await fs.readFile(url, 'utf8'))||{};
+  			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw));
+  		} else {
+  			//if not
+  			const url = `[HarVM] ${this.loc}`;
+  			await Promise.resolve().then(function () { return localforage$1; });
+  			this.raw = await localforage.getItem(url)||{};
+  			this.save = async ()=>await localforage.setItem(url, this.raw);
+  		}
   	}
 
   	/**
@@ -1403,8 +1376,10 @@
   			return raw;
   		}
   		const [arg, ...otherArgs] = args;
-  		if (!(arg in raw)) {
-  			raw[arg] = typeof def !== 'undefined' ? def : {};
+  		def = typeof def !== 'undefined' ? def:{};
+
+  		if(!(arg in raw)){
+  			raw[arg] = otherArgs.length===0 ? def:{};
   		}
   		return this.get({ def, args: otherArgs }, raw[arg]);
   	}
@@ -1422,8 +1397,7 @@
   	// Shallow clone the `args` array because it is modified using .pop.
   	set({def, args: [...args]}, value){
   		const lastArg = args.pop();
-  		this.get({def, args})[lastArg] = value;
-  		return this.#save();
+  		this.get({args})[lastArg] = value;
   	}
   }
 
@@ -1433,22 +1407,22 @@
   	// Create an instance of a Discord client
   	const client = new Client();
 
-  	await ready;
-  	client.prefix = await getItem('[HarVM] prefix');
-  	client.data = new DataManager(JSON.parse(await getItem('[HarVM] data'))||{});
+  	client.data = await dataManager();
 
-  	const aliases = new Map(JSON.parse(await getItem('[HarVM] aliases')) || []);
+  	const aliases = new Map(client.data.get({args:['aliases'],def:[]}));
   	const aliasUtil = {
   		aliases,
   		saveAliases () {
-  			return setItem('[HarVM] aliases', JSON.stringify([...aliases]))
+  			return client.data.aliases = [...aliases];
   		}
   	};
 
   	client.on('ready', () => {
   		//default prefix
-  		if (typeof client.prefix !== 'string') {
-  			client.prefix = new RegExp(`^<@!?${client.user.id}>`);
+  		if (typeof client.data.get({args:['prefix']}) !== 'string') {
+  			console.log("hello world!");
+  			client.data.set({args:['prefix']}, new RegExp(`^<@!?${client.user.id}>`));
+  			client.data.save();
   		}
   		console.log('ready');
   	});
@@ -1529,7 +1503,7 @@
   	}
 
   	function removePrefix (message) {
-  		const prefix = client.prefix;
+  		const prefix = client.data.get({args:['prefix']});
   		if (typeof prefix === 'string') {
   			if (message.startsWith(prefix)) return message.slice(prefix.length)
   		} else if (prefix instanceof RegExp) {
@@ -1586,15 +1560,14 @@
   * @Author: UnsignedByte
   * @Date:   22:53:08, 24-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 23:52:35, 24-May-2020
+  * @Last Modified time: 21:32:36, 03-Jun-2020
   */
-
-  localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/');
+  // import * as storage from './utils/storage.js'
 
   const TOKEN_KEY = '[HarVM] token';
   const NO_STORE = 'please do not store token in localStorage thank';
 
-  let token = localStorage.getItem('[HarVM] token');
+  let token = localStorage.getItem(TOKEN_KEY);
   const tokenInput = Elem('input', {
   	type: 'text',
   	value: token === NO_STORE ? '' : token,

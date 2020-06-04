@@ -1,6 +1,6 @@
 import * as commands from './commands.js'
-import DataManager from './utils/data_manager.js'
-import * as storage from './utils/storage.js'
+import dataManager from './utils/data_manager.js'
+// import * as storage from './utils/storage.js'
 import {Parser} from './utils/parsers.js'
 
 export default async function main (token, Discord) {
@@ -9,22 +9,22 @@ export default async function main (token, Discord) {
 	// Create an instance of a Discord client
 	const client = new Client()
 
-	await storage.ready
-	client.prefix = await storage.getItem('[HarVM] prefix')
-	client.data = new DataManager(JSON.parse(await storage.getItem('[HarVM] data'))||{})
+	client.data = await dataManager();
 
-	const aliases = new Map(JSON.parse(await storage.getItem('[HarVM] aliases')) || [])
+	const aliases = new Map(client.data.get({args:['aliases'],def:[]}))
 	const aliasUtil = {
 		aliases,
 		saveAliases () {
-			return storage.setItem('[HarVM] aliases', JSON.stringify([...aliases]))
+			return client.data.aliases = [...aliases];
 		}
 	}
 
 	client.on('ready', () => {
 		//default prefix
-		if (typeof client.prefix !== 'string') {
-			client.prefix = new RegExp(`^<@!?${client.user.id}>`)
+		if (typeof client.data.get({args:['prefix']}) !== 'string') {
+			console.log("hello world!");
+			client.data.set({args:['prefix']}, new RegExp(`^<@!?${client.user.id}>`))
+			client.data.save();
 		}
 		console.log('ready')
 	})
@@ -105,7 +105,7 @@ export default async function main (token, Discord) {
 	}
 
 	function removePrefix (message) {
-		const prefix = client.prefix
+		const prefix = client.data.get({args:['prefix']})
 		if (typeof prefix === 'string') {
 			if (message.startsWith(prefix)) return message.slice(prefix.length)
 		} else if (prefix instanceof RegExp) {

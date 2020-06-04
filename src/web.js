@@ -2,18 +2,17 @@
 * @Author: UnsignedByte
 * @Date:   22:53:08, 24-May-2020
 * @Last Modified by:   UnsignedByte
-* @Last Modified time: 23:52:35, 24-May-2020
+* @Last Modified time: 21:32:36, 03-Jun-2020
 */
 import './utils/_dom2.js'
 import Discord from "../discord/discord.js"
 import main from "./client.js"
-
-localStorage.setItem('[HarVM] prefix', localStorage.getItem('[HarVM] prefix')||'/')
+// import * as storage from './utils/storage.js'
 
 const TOKEN_KEY = '[HarVM] token'
 const NO_STORE = 'please do not store token in localStorage thank'
 
-let token = localStorage.getItem('[HarVM] token')
+let token = localStorage.getItem(TOKEN_KEY)
 const tokenInput = Elem('input', {
 	type: 'text',
 	value: token === NO_STORE ? '' : token,

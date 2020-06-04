@@ -92,6 +92,11 @@ async function set ({ client, unparsedArgs, reply }) {
 	reply('success')
 }
 
+function save({client, reply}){
+	client.data.save();
+	reply('saved!')
+}
+
 function main ({ reply, unparsedArgs }) {
 	reply('hi```\n' + unparsedArgs + '\n```')
 }
@@ -104,6 +109,7 @@ export {
 	set,
 	simple,
 	sh,
+	save,
 	user
 }
 export default main

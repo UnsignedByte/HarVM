@@ -2,19 +2,35 @@
 * @Author: UnsignedByte
 * @Date:   11:56:39, 25-May-2020
 * @Last Modified by:   UnsignedByte
-* @Last Modified time: 00:48:46, 26-May-2020
+* @Last Modified time: 23:05:40, 03-Jun-2020
 */
 
-import * as storage from './storage.js'
+async function dataManager(name='data'){
+	let ret = new DataManager(name);
+	await ret.init();
+	return ret;
+}
 
 class DataManager {
-	constructor(raw, saveloc='[HarVM] data'){
-		this.raw = raw;
-		this.loc = saveloc;
+	constructor(name){
+		this.loc = name;
 	}
 
-	#save = ()=>{
-		return storage.setItem(this.loc, JSON.stringify(this.raw))
+	async init(){
+		if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+			//if using node
+			const url = new URL(`../../data/${this.loc}.json`, import.meta.url)
+			// const { promises: fs } = require('fs')
+			const { promises: fs } = await import('fs')
+			this.raw = JSON.parse(await fs.readFile(url, 'utf8'))||{}
+			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw))
+		} else {
+			//if not
+			const url = `[HarVM] ${this.loc}`;
+			await import('localforage');
+			this.raw = await localforage.getItem(url)||{};
+			this.save = async ()=>await localforage.setItem(url, this.raw)
+		}
 	}
 
 	/**
@@ -35,8 +51,10 @@ class DataManager {
 			return raw;
 		}
 		const [arg, ...otherArgs] = args
-		if (!(arg in raw)) {
-			raw[arg] = typeof def !== 'undefined' ? def : {};
+		def = typeof def !== 'undefined' ? def:{};
+
+		if(!(arg in raw)){
+			raw[arg] = otherArgs.length===0 ? def:{};
 		}
 		return this.get({ def, args: otherArgs }, raw[arg]);
 	}
@@ -54,9 +72,8 @@ class DataManager {
 	// Shallow clone the `args` array because it is modified using .pop.
 	set({def, args: [...args]}, value){
 		const lastArg = args.pop()
-		this.get({def, args})[lastArg] = value;
-		return this.#save();
+		this.get({args})[lastArg] = value;
 	}
 }
 
-export default DataManager
+export default dataManager

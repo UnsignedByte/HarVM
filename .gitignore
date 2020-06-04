@@ -1,8 +1,9 @@
 # Dependencies
 node_modules
 
-# Discord bot token
+# Discord bot parameters
 token.json
+params.json
 
 # DS Store binary
 *.DS_Store
