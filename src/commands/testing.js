@@ -26,7 +26,11 @@ function simple ({ args, reply }) {
 
 sh.parser = new BashlikeArgumentParser()
 function sh ({ args, reply }) {
-	reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
+	if (args.h || args.help) {
+		reply(sh.parser.toString())
+	} else {
+		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
+	}
 }
 
 resolveThing.parser = new SimpleArgumentParser({
@@ -123,7 +127,8 @@ async function set ({ client, unparsedArgs, reply }) {
 }
 
 function main ({ reply, unparsedArgs }) {
-	reply('hi```\n' + unparsedArgs + '\n```')
+	reply('Usage: testing [collect|data|args|simple|sh|resolveThing|makeManageRolesRole|get|set] ...' +
+		'\n```\n' + unparsedArgs + '\n```')
 }
 
 export {

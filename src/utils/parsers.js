@@ -310,13 +310,15 @@ class BashlikeArgumentParser extends Parser{
 		isString: value => typeof value === 'string'
 	}
 
-	constructor(optionTypes=null){
+	constructor(optionTypes=null, description=''){
 		super();
 		this.optionTypes= optionTypes;
+		this.description = description
 		this.expectsNextValue = this.optionTypes === 'expect-all' ? null : new Set()
 		if (Array.isArray(this.optionTypes)) {
 			for (const optionType of this.optionTypes) {
-				const { name, aliases = [], validate, transform, aliasesOnly = false } = optionType
+				if (!optionType.aliases) optionType.aliases = []
+				const { name, aliases, validate, transform, aliasesOnly = false } = optionType
 				if (validate) {
 					if (!aliasesOnly) {
 						// `unshift` puts the name as the first item so that when it later
@@ -345,6 +347,11 @@ class BashlikeArgumentParser extends Parser{
 					} else {
 						throw new Error(`Invalid validate function for "${name}".`)
 					}
+				}
+				if (aliases.includes('...')) {
+					this._baseOption = name
+				} else if (aliases.includes('--')) {
+					this._restOption = name
 				}
 			}
 		}
@@ -637,7 +644,7 @@ class BashlikeArgumentParser extends Parser{
     const validatedOptions = {}
     for (const {
       name,
-      aliases = [],
+      aliases,
       validate,
       transform,
       optional = false,
@@ -667,6 +674,36 @@ class BashlikeArgumentParser extends Parser{
 			}
 		}
 		return validatedOptions
+	}
+
+	toString () {
+		if (!Array.isArray(this.optionTypes)) {
+			return this.description || 'This command accepts any options and values.'
+		}
+		const options = this.optionTypes
+			.map(({ name, aliases, optional, description, _presence }) => {
+				aliases = aliases
+					.filter(alias => alias !== '...' && alias !== '--')
+					.map(alias => alias.length === 1 ? `\`-${alias}\`` : `\`--${alias}\``)
+				return '`' + name.toUpperCase() + '`' +
+					(aliases.length ? ': ' + aliases.join(', ') : aliases) +
+					(_presence ? '' : ' <value>') +
+					(optional ? ' (optional)' : '') +
+					(description ? '\n\t' + description : '')
+			})
+			.filter(identity)
+			.join('\n')
+		return `Usage: \`${
+			[
+				options ? '[OPTIONS...]' : '',
+				this._baseOption ? `<${this._baseOption.toUpperCase()}...>` : '',
+				this._restOption ? `-- <${this._restOption.toUpperCase()}>` : ''
+			].filter(identity).join(' ')
+		}\`${
+			this.description ? '\n\n' + this.description : ''
+		}${
+			options ? '\n\n' + options : ''
+		}`
 	}
 }
 
