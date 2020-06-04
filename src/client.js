@@ -1,5 +1,5 @@
 import * as commands from './commands.js'
-import DataManager from './utils/data_manager.js'
+import dataManager from './utils/data_manager.js'
 import {Parser, ParserError} from './utils/parsers.js'
 
 export default async function main (token, Discord) {
