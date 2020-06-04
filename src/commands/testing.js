@@ -13,7 +13,13 @@ function args ({ unparsedArgs, reply }) {
 	reply('```\n' + unparsedArgs + '\n```')
 }
 
-simple.parser = new SimpleArgumentParser({ main: '<required> [optional] keyboard', complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]', alternative: 'keyword <required> [optional]'}, {customClass:value => `LMAO this was ur VALUE ${value}`})
+simple.parser = new SimpleArgumentParser({
+	main: '<required> [optional] keyboard',
+	complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> [optional]',
+	alternative: 'keyword <required> [optional]'
+}, {
+	customClass: value => `LMAO this was ur VALUE ${value}`
+})
 function simple ({ args, reply }) {
 	if (args) {
 		reply('```json\n' + JSON.stringify(args, null, 2) + '\n```')
@@ -32,12 +38,13 @@ function sh ({ args, reply }) {
 	}
 }
 
-user.parser = new SimpleArgumentParser({
+resolveThing.parser = new SimpleArgumentParser({
 	member: 'member <member>',
 	user: 'user <user>',
-	role: 'role <role>'
+	role: 'role <role>',
+	channel: 'channel <channel> [count]'
 })
-function user ({ client, msg, args, trace, reply }) {
+async function resolveThing ({ client, msg, args, trace, reply, Discord }) {
 	if (args) {
 		switch (args.type) {
 			case 'member': {
@@ -75,6 +82,23 @@ function user ({ client, msg, args, trace, reply }) {
 					}
 				}
 			}
+			case 'channel': {
+				const channel = resolve.channel(msg, args.channel)
+				if (channel) {
+					if (channel instanceof Discord.TextChannel) {
+						const count = +args.count || 1
+						const messages = await channel.messages.fetch({ limit: count })
+						reply(messages.map(msg => `**[${msg.author.tag}]** ${msg.content}`).join('\n'))
+					} else {
+						reply(`that is ${channel.type} channel`)
+					}
+				} else {
+					return {
+						message: `I don't know to what "${args.channel}" refers.`,
+						trace
+					}
+				}
+			}
 		}
 	} else {
 		return { message: 'Invalid syntax.', trace }
@@ -104,6 +128,6 @@ export {
 	set,
 	simple,
 	sh,
-	user
+	resolveThing as resolve
 }
 export default main

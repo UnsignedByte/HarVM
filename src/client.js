@@ -86,6 +86,7 @@ export default async function main (token, Discord) {
 		}
 		// Commands can return a string for an error message I guess
 		return await commandFn({
+			Discord,
 			client,
 			unparsedArgs,
 			//Parse args using the parser for the given command; return undefined if no parser exists
