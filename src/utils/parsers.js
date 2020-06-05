@@ -154,7 +154,7 @@ class SimpleArgumentParser extends Parser {
 		// of "words" (see the function description) or strings.
 		const tokens = [...unparsedArgs.matchAll(/("(?:[^"\\]|\\.)*")|[^\s]+/g)]
 			// Parse strings using JSON.parse.
-			.map(match => match[1] ? JSON.parse(match[1]) : match[0])
+			.map(match => SimpleArgumentParser.substituteEnv(env, match[1] ? JSON.parse(match[1]) : match[0]))
 
 		const invalidations = []
 
@@ -237,6 +237,18 @@ class SimpleArgumentParser extends Parser {
 		}
 		// The tokens didn't match any of the possible parsings, so it failed.
 		throw new ParserError(invalidations.join('\n'))
+	}
+
+	static _envSubstitutor = /\$\$|\$\((\w+)\)|\$([^(])/g
+
+	static substituteEnv (env, token) {
+		return token.replace(SimpleArgumentParser._envSubstitutor, (match, varName, char) => {
+			if (varName) {
+				return env.get(varName)
+			} else {
+				return char || '$'
+			}
+		})
 	}
 }
 
