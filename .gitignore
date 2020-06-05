@@ -1,12 +1,14 @@
 # Dependencies
 node_modules
 
-
 # DS Store binary
 *.DS_Store
 
 # Source maps (I guess we can include it later? But the file looks fat to me lol)
 build/*.map
 
-# Storage for Node from src/utils/storage.js
-node-storage
+# Bot token file (when running in Node)
+data/token.txt
+
+# Bot data (when running in Node)
+data/data.json
