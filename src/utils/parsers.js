@@ -84,8 +84,9 @@ class Parser{
 
 
 class SimpleArgumentParser extends Parser {
-	static FAILURE = Symbol('Simple argument parser data failure')
+	static FAILURE = Symbol('SimpleArgumentParser Data Failure')
 	static argTypes = {
+		'...':/^(?<class>\w*)(?<name>\.\.\.)$/,
 		keyword:/^(?<name>\w+)$/,
 		required:/^(?<class>\w*)<(?<name>\w+)>$/,
 		optional:/^(?<class>\w*)\[(?<name>\w+)\]$/
@@ -111,7 +112,7 @@ class SimpleArgumentParser extends Parser {
 		int: value => parseInt(value)||SimpleArgumentParser.FAILURE,
 		float: value => parseFloat(value)||SimpleArgumentParser.FAILURE
 	}
-	constructor(rawOptions, dataTypes={}){
+	constructor(rawOptions={}, dataTypes={}){
 		super();
 		this.rawOptions = rawOptions;
 		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
@@ -136,6 +137,19 @@ class SimpleArgumentParser extends Parser {
 	}
 
 	parse(unparsedArgs, env){
+		let validateArg = (name, arg, val) => {
+			let validated = this.dataTypes[arg.class](val);
+			if (validated===SimpleArgumentParser.FAILURE) {
+				console.log(arg.type);
+				if (arg.type === 'optional') {
+					return undefined
+				}
+				invalidations.push(`${name}: Argument \`${arg.name}\` had value \`${val}\`, which was not of type \`${arg.class}\`.`)
+				throw new Error('Invalid Argument')
+			}
+			return validated;
+		}
+
 		// Unnecessarily complicated; splits the unparsed arguments into an array
 		// of "words" (see the function description) or strings.
 		const tokens = [...unparsedArgs.matchAll(/("(?:[^"\\]|\\.)*")|[^\s]+/g)]
@@ -161,7 +175,6 @@ class SimpleArgumentParser extends Parser {
 			 */
 			for (let j = 0; j < syntax.length; j++) {
 				const argument = syntax[j]
-				console.log(argument);
 				// Are there insufficient tokens?
 				if (i >= tokens.length) {
 					// Maybe the rest of the arguments are optional. However, if not,
@@ -204,16 +217,16 @@ class SimpleArgumentParser extends Parser {
 						// If it continues, move down to required
 					case 'required':
 						// Store the token as the argument value
-						data[argument.name] = this.dataTypes[argument.class](tokens[i]);
-						if (data[argument.name]===SimpleArgumentParser.FAILURE) {
-							if (argument.type === 'required') {
-								invalidations.push(`${name}: Argument \`${argument.name}\` had value \`${tokens[i]}\`, which was not of type \`${argument.class}\`.`)
-								continue mainLoop
-							} else {
-								delete data[argument.name]
-							}
-						}
+						try{
+							data[argument.name] = validateArg(name, argument, tokens[i])
+						}catch(err){continue mainLoop;}
 						i++;
+						break;
+					case '...':
+						try{
+							data[argument.name] = tokens.slice(i).map(x=> validateArg(name, argument, x))
+						}catch(err){continue mainLoop;}
+						i = tokens.length;
 						break;
 				}
 			}
