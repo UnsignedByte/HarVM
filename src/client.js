@@ -1,5 +1,6 @@
 import * as commands from './commands.js'
 import dataManager from './utils/data_manager.js'
+import authorize from './utils/authorize.js'
 import {Parser, ParserError} from './utils/parsers.js'
 
 export default async function main (token, Discord) {
@@ -87,6 +88,10 @@ export default async function main (token, Discord) {
 			get args() {
 				if (!parser) parser = commandFn.parser||new Parser()
 				return parser.parse(unparsedArgs, context.env)
+			},
+			get auth() {
+				let authorized = authorize(Discord, msg, commandFn.auth)
+				if (!authorized) throw new Error(`Insufficient Permissions to Run Command. The following permissions are required for authorization:\n\`${commandFn.auth.join('`\n`')}\``)
 			},
 			msg,
 			env: context.env,

@@ -1,5 +1,6 @@
 import { SimpleArgumentParser, BashlikeArgumentParser } from '../utils/parsers.js'
 import * as resolve from '../utils/client-resolve.js'
+import authorize from '../utils/authorize.js'
 
 function collect ({ client, msg, reply }) {
 	reply(JSON.stringify(client.data.get({args:['user', msg.author.id]})))
@@ -16,7 +17,9 @@ function args ({ unparsedArgs, reply }) {
 simple.parser = new SimpleArgumentParser({
 	main: '<required> [optional] keyboard',
 	complex: 'complex int<requiredInt> float<requiredDouble> bool<requiredBool> customClass<testcustom> [optional]',
-	alternative: 'keyword <required> [optional]'
+	alternative: 'keyword <required> [optional]',
+	ellipsesint:'keybruh <test> customClass<nottest> int...',
+	ellipses:'keybruh <test> <nottest> ...'
 }, {
 	customClass: value => `LMAO this was ur VALUE ${value}`
 })
@@ -131,6 +134,24 @@ function save({client, reply}){
 	reply('saved!')
 }
 
+auth.parser = new SimpleArgumentParser({main:'...'})
+function auth({Discord, msg, reply, args}){
+	if (authorize(Discord, msg, args['...'])){
+		reply('yes lol')
+	}else{
+		reply('no lmao')
+	}
+}
+
+adminOnly.auth = ['administrator']
+function adminOnly({reply, auth}){
+	// if (auth){
+		reply('omg u made it')
+	// }else{
+
+	// }
+}
+
 function main ({ reply, unparsedArgs }) {
 	reply('Usage: testing [collect|data|args|simple|sh|resolveThing|makeManageRolesRole|get|set] ...' +
 		'\n```\n' + unparsedArgs + '\n```')
@@ -146,6 +167,8 @@ export {
 	sh,
 	save,
 	resolveThing as resolve,
+	auth,
+	adminOnly,
 	makeManageRolesRole
 }
 export default main
