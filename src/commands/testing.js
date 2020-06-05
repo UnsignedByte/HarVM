@@ -145,11 +145,7 @@ function auth({Discord, msg, reply, args}){
 
 adminOnly.auth = ['administrator']
 function adminOnly({reply, auth}){
-	// if (auth){
 		reply('omg u made it')
-	// }else{
-
-	// }
 }
 
 function main ({ reply, unparsedArgs }) {
