@@ -149,7 +149,7 @@ function adminOnly({reply, auth}){
 }
 
 function main ({ reply, unparsedArgs }) {
-	reply('Usage: testing [collect|data|args|simple|sh|resolveThing|makeManageRolesRole|get|set] ...' +
+	reply('Usage: testing [collect|data|args|simple|sh|resolve|makeManageRolesRole|get|set|save|auth|adminOnly] ...' +
 		'\n```\n' + unparsedArgs + '\n```')
 }
 

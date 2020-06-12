@@ -22,7 +22,8 @@
   "homepage": "https://github.com/UnsignedByte/HarVM#readme",
   "dependencies": {
     "discord.js": "^12.2.0",
-    "localforage": "^1.7.3"
+    "localforage": "^1.7.3",
+    "mcproto": "^0.8.1"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^8.0.0",

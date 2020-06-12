@@ -21,6 +21,10 @@ export default {
 		resolve({
 			browser: true
 		}),
-		ignore(['fs', 'buffer'])
+		ignore([
+			'fs',
+			'buffer',
+			'mcproto'
+		])
 	]
 };
