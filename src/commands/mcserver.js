@@ -1,7 +1,7 @@
-import { isNode } from './node.js'
+import { isNode } from '../utils/node.js'
 import { BashlikeArgumentParser } from '../utils/parsers.js'
 
-function main () {
+function main ({ reply }) {
 	reply('Usage: `mcserver [status]`')
 }
 
@@ -15,19 +15,22 @@ async function status ({
 	reply,
 	trace
 }) {
+	if (help) {
+		return reply('Get the status of a Minecraft server. It uses the [`mcproto`](https://github.com/janispritzkau/mcproto) library, which only works in Node. ' +
+			(isNode() ? 'Fortunately, the bot is running on Node, so this will work.' : 'Unfortunately, the bot is not running on Node, so this command will not work.') +
+			'\n\n' +status.parser.toString())
+	}
 	if (!isNode()) {
 		return {
-			message: 'Cannot fetch server information (because the bot is not being hosted on Node).',
+			message: 'Will not be able to fetch server information (because the bot is not being hosted on Node).',
 			trace
 		}
 	}
 	port = +port
 	if (host) {
 		if (setDefault) {
-			if (!client.data.minecraft) client.data.minecraft = {}
-			if (!client.data.minecraft.default) client.data.minecraft.default = {}
-			client.data.minecraft.default.host = host
-			client.data.minecraft.default.port = port
+			client.data.set({ args: ['minecraft', 'default'] }, { host, port, set: true })
+			await client.data.save()
 		}
 	} else {
 		if (setDefault) {
@@ -35,38 +38,41 @@ async function status ({
 				message: 'You must give a hostname when setting the default server',
 				trace
 			}
-		} else if (client.data.minecraft.default) {
-			({ host, port }) = client.data.minecraft.default
 		} else {
-			return {
-				message: 'No default server set. Do `mcserver status --help` for a list of arguments.',
-				trace
+			const get = client.data.get(['minecraft', 'default'])
+			if (!get || !get.set) {
+				return {
+					message: 'No default server set. Do `mcserver status --help` for a list of arguments.',
+					trace
+				}
+			} else {
+				;({ host, port } = get)
 			}
 		}
 	}
 
-	if (!mcproto) mcproto = await import('mcproto')
+	if (!mcproto) mcproto = (await import('mcproto')).default
 	const { Client, PacketWriter, State } = mcproto
 
 	// https://github.com/janispritzkau/mcproto#server-list-ping
-	const client = await Client.connect(host, port)
+	const mcClient = await Client.connect(host, port)
 
-	client.send(new PacketWriter(0x0).writeVarInt(404)
-    .writeString(host).writeUInt16(port)
-    .writeVarInt(State.Status))
+	mcClient.send(new PacketWriter(0x0).writeVarInt(404)
+		.writeString(host).writeUInt16(port)
+		.writeVarInt(State.Status))
 
-	client.send(new PacketWriter(0x0))
+	mcClient.send(new PacketWriter(0x0))
 
-	const response = await client.nextPacket(0x0)
+	const response = await mcClient.nextPacket(0x0)
 	const { players: { online, max, sample } } = response.readJSON()
 
 	reply(`__**${online}**/${max}__\n${
 		sample.map(({ id, name }) =>
 			`[\`${name}\`](https://minotar.net/armor/body/${id}/100.png)`)
 			.join('\n')
-	}`)
+	}${setDefault ? '\n(Defaults saved)' : ''}`)
 
-	client.end()
+	mcClient.end()
 }
 status.parser = new BashlikeArgumentParser([
 	{
@@ -83,7 +89,8 @@ status.parser = new BashlikeArgumentParser([
 		name: 'host',
 		aliases: ['H'],
 		validate: 'isString',
-		description: 'Minecraft server host name (eg hypixel.net)'
+		description: 'Minecraft server host name (eg hypixel.net)',
+		optional: true
 	},
 	{
 		name: 'port',
@@ -94,3 +101,7 @@ status.parser = new BashlikeArgumentParser([
 		optional: true
 	}
 ])
+
+export {
+	status
+}

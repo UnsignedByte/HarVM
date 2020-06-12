@@ -16,7 +16,8 @@ export default async function main (token, Discord) {
 	const aliasUtil = {
 		aliases,
 		saveAliases () {
-			return client.data.aliases = [...aliases];
+			client.data.set({ args: ['aliases'] }, [...aliases])
+			return client.data.save()
 		}
 	}
 
@@ -30,8 +31,9 @@ export default async function main (token, Discord) {
 	function reply (msg, message, {
 		error = false
 	} = {}) {
-		msg.channel.send('', {
+		return msg.channel.send('', {
 			embed: {
+				title: 'Hi,',
 				footer: {
 					text: `Requested by ${msg.author.tag}`,
 					icon_url: msg.author.displayAvatarURL({
@@ -87,7 +89,7 @@ export default async function main (token, Discord) {
 			// recursively call
 			// BUG: This setup may have a vulnerability where setting an alias to
 			// itself will cause a maximum call size limit reached error
-			return await runCommand(aliases.get(commandName) + command.slice(commandName.length), context)
+			return await runCommand(aliases.get(commandName) + command.slice(rawCommandName.length), context)
 		} else {
 			return {
 				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
@@ -182,7 +184,7 @@ export default async function main (token, Discord) {
 							reply(
 								msg,
 								[
-									`A JavaScript runtime error occurred (id ${error.id}):`,
+									`A JavaScript runtime error occurred (id \`${error.id}\`):`,
 									error.message,
 									'',
 									'**Trace**',
@@ -194,7 +196,7 @@ export default async function main (token, Discord) {
 							reply(
 								msg,
 								[
-									`A JavaScript runtime error occurred (id ${error.id}):`,
+									`A JavaScript runtime error occurred (id \`${error.id}\`):`,
 									error.message
 								].join('\n'),
 								{ error: true }
