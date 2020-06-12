@@ -5,6 +5,8 @@
 * @Last Modified time: 23:29:31, 03-Jun-2020
 */
 
+import { isNode } from './node.js'
+
 async function dataManager(name='data'){
 	let ret = new DataManager(name);
 	await ret.init();
@@ -17,7 +19,7 @@ class DataManager {
 	}
 
 	async init(){
-		if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+		if (isNode()) {
 			//if using node
 			const url = new URL(`../../data/${this.loc}.json`, import.meta.url)
 			// const { promises: fs } = require('fs')
