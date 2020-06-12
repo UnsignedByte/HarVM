@@ -27,8 +27,23 @@ export default async function main (token, Discord) {
 	const commandParser = /^(\s*\w+)(?:\s+(\w+))?/
 
 	// TODO: We can make this fancier by making a standard embed response thing
-	function reply (msg, message, options={}) {
-		msg.channel.send(`Requested by ${msg.author.tag}:\n${message}`, options)
+	function reply (msg, message, {
+		error = false
+	} = {}) {
+		msg.channel.send('', {
+			embed: {
+				footer: {
+					text: `Requested by ${msg.author.tag}`,
+					icon_url: msg.author.displayAvatarURL({
+						format: 'png',
+						dynamic: true
+					})
+				},
+				color: error ? 0xff0000 : null, // TODO: Better colours lol
+				timestamp: new Date().toISOString(),
+				description: message
+			}
+		})
 	}
 
 	// Allows for batch calling in the future
@@ -159,19 +174,44 @@ export default async function main (token, Discord) {
 						// If there's a runtime error I guess we can also report it
 						return { message: err.message, runtime: true, id }
 					})
-				// TODO: Probably can make this more sophisticated by indicating that it should
-				// have a red stripe etc
 				if (error) {
 					if (typeof error === 'string') {
-						reply(msg, error)
+						reply(msg, error, { error: true })
 					} else if (error.runtime) {
 						if (error.trace) {
-							reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
+							reply(
+								msg,
+								[
+									`A JavaScript runtime error occurred (id ${error.id}):`,
+									error.message,
+									'',
+									'**Trace**',
+									error.trace.join('\n') || '[Top level]'
+								].join('\n'),
+								{ error: true }
+							)
 						} else {
-							reply(msg, `A JavaScript runtime error occurred (id ${error.id}):\n${error.message}`)
+							reply(
+								msg,
+								[
+									`A JavaScript runtime error occurred (id ${error.id}):`,
+									error.message
+								].join('\n'),
+								{ error: true }
+							)
 						}
 					} else if (error.trace) {
-						reply(msg, `A problem occurred:\n${error.message}\n\n**Trace**\n${error.trace.join('\n') || '[Top level]'}`)
+						reply(
+							msg,
+							[
+								'A problem occurred:',
+								error.message,
+								'',
+								'**Trace**',
+								error.trace.join('\n') || '[Top level]'
+							].join('\n'),
+							{ error: true }
+						)
 					}
 				}
 			}
