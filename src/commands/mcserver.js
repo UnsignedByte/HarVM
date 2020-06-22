@@ -16,9 +16,7 @@ async function status ({
 	trace
 }) {
 	if (help) {
-		return reply('Get the status of a Minecraft server. It uses the [`mcproto`](https://github.com/janispritzkau/mcproto) library, which only works in Node. ' +
-			(isNode() ? 'Fortunately, the bot is running on Node, so this will work.' : 'Unfortunately, the bot is not running on Node, so this command will not work.') +
-			'\n\n' +status.parser.toString())
+		return reply(status.parser.toString())
 	}
 	if (!isNode()) {
 		return {
@@ -39,7 +37,7 @@ async function status ({
 				trace
 			}
 		} else {
-			const get = client.data.get(['minecraft', 'default'])
+			const get = client.data.get({ args: ['minecraft', 'default'] })
 			if (!get || !get.set) {
 				return {
 					message: 'No default server set. Do `mcserver status --help` for a list of arguments.',
@@ -100,7 +98,10 @@ status.parser = new BashlikeArgumentParser([
 		description: 'Minecraft server port (eg 25565)',
 		optional: true
 	}
-])
+], 'Get the status of a Minecraft server. It uses the [`mcproto`](https://github.com/janispritzkau/mcproto) library, which only works in Node. ' +
+	(isNode()
+		? 'Fortunately, the bot is running on Node, so this will work.'
+		: 'Unfortunately, the bot is not running on Node, so this command will not work.'))
 
 export {
 	status
