@@ -9,16 +9,19 @@ export default main
 
 let mcproto
 
+function findUserIdByMC (whois, mc, col) {
+	const entry = Object.entries(whois).find(([id, info]) => info[col] === mc)
+	return entry ? entry[0] : null
+}
+
 async function status ({
 	client,
-	args: { help, setDefault, host, port = 25565 },
+	args: { help, setDefault, host, port = 25565, col = 'Minecraft' },
 	reply,
 	trace
 }) {
 	if (help) {
-		return reply('Get the status of a Minecraft server. It uses the [`mcproto`](https://github.com/janispritzkau/mcproto) library, which only works in Node. ' +
-			(isNode() ? 'Fortunately, the bot is running on Node, so this will work.' : 'Unfortunately, the bot is not running on Node, so this command will not work.') +
-			'\n\n' +status.parser.toString())
+		return reply(status.parser.toString())
 	}
 	if (!isNode()) {
 		return {
@@ -39,7 +42,7 @@ async function status ({
 				trace
 			}
 		} else {
-			const get = client.data.get(['minecraft', 'default'])
+			const get = client.data.get({ args: ['minecraft', 'default'] })
 			if (!get || !get.set) {
 				return {
 					message: 'No default server set. Do `mcserver status --help` for a list of arguments.',
@@ -64,12 +67,21 @@ async function status ({
 	mcClient.send(new PacketWriter(0x0))
 
 	const response = await mcClient.nextPacket(0x0)
-	const { players: { online, max, sample } } = response.readJSON()
+	const { players: { online, max, sample = [] } } = response.readJSON()
+	const whois = client.data.get({ args: ['whois'], def: null })
 
 	reply(`__**${online}**/${max}__\n${
-		sample.map(({ id, name }) =>
-			`[\`${name}\`](https://minotar.net/armor/body/${id}/100.png)`)
-			.join('\n')
+		sample.map(
+			({ id, name }) => {
+				let userID
+				if (whois) {
+					userID = findUserIdByMC(whois, name, col)
+				}
+				return `[\`${name}\`](https://minotar.net/armor/body/${id}/100.png)` +
+					(whois && userID ? ` (<@${userID}>)` : '')
+			}
+		)
+			.join('\n') || 'No one\'s on :('
 	}${setDefault ? '\n(Defaults saved)' : ''}`)
 
 	mcClient.end()
@@ -99,8 +111,18 @@ status.parser = new BashlikeArgumentParser([
 		validate: 'isString',
 		description: 'Minecraft server port (eg 25565)',
 		optional: true
+	},
+	{
+		name: 'col',
+		aliases: ['C', 'whois-col', 'column'],
+		validate: 'isString',
+		description: 'The column name (case sensitive) in the whois spreadsheet (see `whois help`) of Minecraft usernames. Default value is `Minecraft`.',
+		optional: true
 	}
-])
+], 'Get the status of a Minecraft server. It uses the [`mcproto`](https://github.com/janispritzkau/mcproto) library, which only works in Node. ' +
+	(isNode()
+		? 'Fortunately, the bot is running on Node, so this will work.'
+		: 'Unfortunately, the bot is not running on Node, so this command will not work.'))
 
 export {
 	status

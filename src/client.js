@@ -29,7 +29,8 @@ export default async function main (token, Discord) {
 
 	// TODO: We can make this fancier by making a standard embed response thing
 	function reply (msg, message, {
-		error = false
+		error = false,
+		fields = []
 	} = {}) {
 		return msg.channel.send('', {
 			embed: {
@@ -43,7 +44,8 @@ export default async function main (token, Discord) {
 				},
 				color: error ? 0xff0000 : null, // TODO: Better colours lol
 				timestamp: new Date().toISOString(),
-				description: message
+				description: message,
+				fields
 			}
 		})
 	}
