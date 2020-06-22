@@ -64,12 +64,12 @@ async function status ({
 	mcClient.send(new PacketWriter(0x0))
 
 	const response = await mcClient.nextPacket(0x0)
-	const { players: { online, max, sample } } = response.readJSON()
+	const { players: { online, max, sample = [] } } = response.readJSON()
 
 	reply(`__**${online}**/${max}__\n${
 		sample.map(({ id, name }) =>
 			`[\`${name}\`](https://minotar.net/armor/body/${id}/100.png)`)
-			.join('\n')
+			.join('\n') || 'No one\'s on :('
 	}${setDefault ? '\n(Defaults saved)' : ''}`)
 
 	mcClient.end()
