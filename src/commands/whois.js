@@ -18,7 +18,7 @@ function whois ({ args, reply, client, trace }) {
 	}
 	return reply(`Information about ${user}`, {
 		fields: Object.entries(whois[user.id])
-			.map(([key, value]) => value ? { name: key, value, inline: true } : null)
+			.map(([col, value]) => value ? { name: col, value, inline: true } : null)
 			.filter(identity)
 	})
 }
