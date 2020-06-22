@@ -1,6 +1,7 @@
 import { SimpleArgumentParser, BashlikeArgumentParser } from '../utils/parsers.js'
 import * as resolve from '../utils/client-resolve.js'
 import { fetchDirectory } from '../utils/directory.js'
+import identity from '../utils/identity.js'
 
 function whois ({ args, reply, client, trace }) {
 	const whois = client.data.get({ args: ['whois'], def: null })
@@ -17,7 +18,8 @@ function whois ({ args, reply, client, trace }) {
 	}
 	return reply(`Information about ${user}`, {
 		fields: Object.entries(whois[user.id])
-			.map(([key, value]) => ({ name: key, value, inline: true }))
+			.map(([key, value]) => value ? { name: key, value, inline: true } : null)
+			.filter(identity)
 	})
 }
 whois.parser = new SimpleArgumentParser({
@@ -43,7 +45,11 @@ async function fetch ({ args, reply, client, trace }) {
 		return { message: 'No ID column name (`-i`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
 	}
 	const whois = await fetchDirectory(args.url, args.id)
-	console.log(whois)
+	client.data.set({ args: ['whois'] }, whois)
+	client.data.set({ args: ['whois_last_url'] }, url)
+	client.data.set({ args: ['whois_last_id'] }, id)
+	await client.data.save()
+	return reply(`Fetched! ${Object.keys(whois).length - 1} entries found.`)
 }
 fetch.auth = ['manage guild']
 fetch.parser = new BashlikeArgumentParser([
