@@ -7,6 +7,7 @@
 
 import resolve from '@rollup/plugin-node-resolve';
 import ignore from 'rollup-plugin-ignore';
+import commonjs from '@rollup/plugin-commonjs';
 
 export default {
   input: 'src/web.js',
@@ -21,6 +22,7 @@ export default {
 		resolve({
 			browser: true
 		}),
+    commonjs(),
 		ignore([
 			'fs',
 			'buffer',
