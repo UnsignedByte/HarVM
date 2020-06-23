@@ -44,7 +44,7 @@ async function fetch ({ args, reply, client, trace }) {
 	if (!id) {
 		return { message: 'No ID column name (`-i`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
 	}
-	const whois = await fetchDirectory(args.url, args.id)
+	const whois = await fetchDirectory(url, id)
 	client.data.set({ args: ['whois'] }, whois)
 	client.data.set({ args: ['whois_last_url'] }, url)
 	client.data.set({ args: ['whois_last_id'] }, id)

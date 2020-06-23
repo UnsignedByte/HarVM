@@ -7,7 +7,7 @@ function collect ({ client, msg, reply }) {
 }
 
 function data ({ client, reply }) {
-	reply('```\n' + JSON.stringify(client.data.raw()) + '\n```')
+	reply('```json\n' + JSON.stringify(client.data.raw).slice(0, 2000) + '\n```')
 }
 
 function args ({ unparsedArgs, reply }) {
@@ -119,7 +119,7 @@ async function makeManageRolesRole ({ msg, args: { name }, reply }) {
 }
 
 function get ({ client, args: { ['...']: args }, reply }) {
-	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```')
+	reply('```json\n' + JSON.stringify(client.data.get({args})) + '\n```')
 }
 get.parser = new SimpleArgumentParser({main:'...'})
 
