@@ -76,7 +76,7 @@ async function runCommand ({ args, run, env, trace }) {
 	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
 	// will log 7
 	const { commands, withVars, ignoreError } = args
-	console.log(commands, withVars, ignoreError)
+	// console.log(commands, withVars, ignoreError)
 	// If `withVars` is a string, there was a problem
 	if (withVars) return { message: withVars, trace }
 	for (const command of commands) {

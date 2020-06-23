@@ -55,10 +55,16 @@ export default async function main (token, Discord) {
 		context.calls++
 		// We can check if the user has gone over their call limit here
 		const { msg } = context
+		if (!command) {
+			return {
+				message: 'Tip: do \`help commands\` for a list of commands.',
+				trace: ['@empty', ...context.trace]
+			}
+		}
 		const match = command.match(commandParser)
 		if (!match) {
 			return {
-				message: `Invalid syntax; command names may only contain letters, numbers, and underscores.`,
+				message: 'Invalid syntax; command names may only contain letters, numbers, and underscores.',
 				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
 			}
 		}

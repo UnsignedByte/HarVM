@@ -7,8 +7,11 @@ export function list ({ aliasUtil: { aliases }, reply }) {
 }
 
 set.parser = new SimpleArgumentParser({ main: '<aliasName> [command]' })
-export function set ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
-	const { aliasName, command } = set.parser.parse(unparsedArgs)
+export function set ({
+	aliasUtil: { aliases, saveAliases },
+	reply,
+	args: { aliasName, command }
+}) {
 	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
 	if (command) {
 		aliases.set(aliasName, command)

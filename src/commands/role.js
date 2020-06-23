@@ -21,6 +21,7 @@ give.parser = new BashlikeArgumentParser([
 		description: 'Remove the specified roles instead of giving.'
 	}
 ], 'Give or remove roles from a user.')
+give.auth = ['manage roles']
 
 async function give ({ msg, args: { roles, target, remove }, env, trace, reply }) {
 	const member = resolve.member(msg, target)

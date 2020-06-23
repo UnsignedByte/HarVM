@@ -118,28 +118,31 @@ async function makeManageRolesRole ({ msg, args: { name }, reply }) {
 	reply('Sure!')
 }
 
-function get ({ client, unparsedArgs, reply }) {
-	const args = unparsedArgs.split(/\s+/).filter(arg => arg)
+function get ({ client, args: { ['...']: args }, reply }) {
 	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```')
 }
+get.parser = new SimpleArgumentParser({main:'...'})
 
-async function set ({ client, unparsedArgs, reply }) {
-	const [value, ...args] = unparsedArgs.split(/\s+/)
+async function set ({ client, args: { ['...']: parsedArgs }, reply }) {
+	const [value, ...args] = parsedArgs
 	await client.data.set({args}, value)
 	reply('success')
 }
+set.parser = new SimpleArgumentParser({main:'...'})
 
 function save({client, reply}){
 	client.data.save();
 	reply('saved!')
 }
 
+// Asserts authorization and returns an error if authorization fails
 auth.parser = new SimpleArgumentParser({main:'...'})
-function auth({Discord, msg, reply, args}){
-	if (authorize(Discord, msg, args['...'])){
-		reply('yes lol')
-	}else{
-		reply('no lmao')
+function auth({Discord, msg, reply, args, trace}){
+	if (!authorize(Discord, msg, args['...'])){
+		return {
+			message: `Insufficient permissions; expected at least one of the following permissions: ${args['...'].join(', ')}.`,
+			trace
+		}
 	}
 }
 
