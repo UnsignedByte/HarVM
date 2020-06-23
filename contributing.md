@@ -282,3 +282,91 @@ Calling `billy -o "Hello Billy!"` will populate `args` with
 ```
 
 Again, `src/utils/parsers.js` contains more information.
+
+## Epic utilities
+
+The `src/utils/` folder contains some nice utilities that you can use for your
+commands, in addition to the argument parsers.
+
+### Using the data manager
+
+The data manager, accessible through `client.data`, can save JSON locally so
+that it persists when the bot restarts. On the web, it uses
+[IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)
+through [localforage](https://localforage.github.io/localForage/). In Node, it
+uses the [`fs` Promises API](https://nodejs.org/api/fs.html#fs_fs_promises_api).
+The consequence of this is that saving data is asynchronous, so you should
+consider `await`ing it.
+
+```js
+client.data.get({ args: ['users', 'Sally'] }) // {}
+client.data.get({ args: ['users', 'Molly'], def: null }) // null
+client.data.set({ args: ['users', 'Sally', 'money'] }, 100)
+
+// Don't forget to save!
+await client.data.save()
+
+JSON.stringify(client.data.raw, null, '\t')
+```
+
+```json
+{
+	"users": {
+		"Sally": {
+			"money": 100
+		},
+		"Molly": null
+	}
+}
+```
+
+`get` and `set` accept an object with property `args`, an array of key names
+used to traverse the data, and `def` (default: `{}`), the default value set
+while traversing the data.
+
+
+#### Data structure
+
+`aliases` is an array of alias-command pairs.
+
+`prefix` is the prefix of the bot. By default, there is no prefix, so the user
+must resort to mentioning the bot.
+
+`minecraft/default` is an object with properties `host`, `port`, and `set`, the
+latter of which is `true`. This object exists if a default host/port has been
+set for the `mcserver status` command.
+
+`whois` is an object mapping user IDs to spreadsheet data from the `whois fetch`
+command. This can be used by other commands to identify users by their first
+names, for example.
+
+`whois_last_url` and `whois_last_id` are the last used arguments for the `whois
+fetch` command; this is just for convenience for refetching from the spreadsheet
+to update the stored data.
+
+### Authorization
+
+Instead of using `commandFunction.auth`, you can call `authorize` from
+`src/utils/authorize.js` with parameters `Discord`, `msg` (from the command
+function parameter object), and `perms`, which is an array of permission names.
+
+### Resolving discord.js objects
+
+`src/utils/client-resolve.js` also has fancy helper functions for resolving
+discord.js
+[GuildMembers](https://discord.js.org/#/docs/main/master/class/GuildMember),
+[Roles](https://discord.js.org/#/docs/main/master/class/Role),
+[Users](https://discord.js.org/#/docs/main/master/class/User), and
+[Channels](https://discord.js.org/#/docs/main/master/class/Channel). This is
+just for convenience so that people can specify users by their name or ID
+instead of pinging them in a command.
+
+### Other utilities
+
+`src/utils/identity.js` has a default export: an identity function, which simply
+returns its argument.
+
+`src/utils/node.js` exports `isNode`, which returns true if the bot is being run
+in Node.
+
+`src/utils/str.js` exports `escapeRegex`, which escapes special characters in a string to be inserted in a `RegExp` constructor, `isWhitespace`, and a constant `CODE`, which is just three backtick characters. `CODE` is useful for not having to escape backticks in a template literal, though `${CODE}` is longer than ``\`\`\` ``.

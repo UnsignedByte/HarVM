@@ -32,7 +32,7 @@ class DataManager {
 						return Promise.reject(err)
 					}
 				}))||{}
-			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw))
+			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw, null, '\t'))
 		} else {
 			//if not
 			const url = `[HarVM] ${this.loc}`;
