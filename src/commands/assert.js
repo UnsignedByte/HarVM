@@ -64,8 +64,8 @@ async function ok ({ run, args: { command, var: varName }, env }) {
 	}
 }
 ok.parser = new SimpleArgumentParser({
-	store: 'store <command> in <var>',
-	try: 'try <command>'
+	store: 'store <command> in <var> # Attempts to run the command and sets the variable to an empty string if there\'s an error (otherwise "ok").',
+	try: 'try <command> # Runs the command and ignores any errors'
 })
 
 export {

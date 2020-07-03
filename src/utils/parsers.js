@@ -125,17 +125,20 @@ class SimpleArgumentParser extends Parser {
 		this.rawOptions = rawOptions;
 		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
 		this.options = Object.entries(rawOptions).map(([name, option]) => {
+			const args = option.split(/\s+/)
+			const commentIndex = args.indexOf('#')
 			return {
 				name,
 				// Parse and validate the argument syntax
-				syntax: option.split(/\s+/).map(argument => {
-					// loop through all argTypes and try to match each
-					for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
-						let match = reg.exec(argument);
-						if (match) return Object.assign({type:type}, match.groups);
-					}
-					throw new Error(`Invalid syntax: ${argument} is not a valid argument type`)
-				})
+				syntax: args.slice(0, commentIndex > -1 ? commentIndex : args.length)
+					.map(argument => {
+						// loop through all argTypes and try to match each
+						for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
+							let match = reg.exec(argument);
+							if (match) return Object.assign({type:type}, match.groups);
+						}
+						throw new Error(`Invalid syntax: ${argument} is not a valid argument component`)
+					})
 			}
 		})
 	}
@@ -143,7 +146,16 @@ class SimpleArgumentParser extends Parser {
 	toString(){
 		return this.description + '\n\n' +
 			Object.entries(this.rawOptions)
-				.map(([name, raw]) => `${name}: \`${raw}\``)
+				.map(([name, raw]) => {
+					const commentIndex = raw.indexOf('#')
+					return `${name}: \`${
+						raw.slice(0, commentIndex > -1 ? commentIndex : raw.length)
+					}\`${
+						commentIndex > -1
+							? `\n  ${raw.slice(commentIndex + 1).trim()}`
+							: ''
+					}`
+				})
 				.join('\n');
 	}
 
