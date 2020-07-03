@@ -13,11 +13,11 @@ export function set ({
 	args: { aliasName, command }
 }) {
 	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
+	const oldCommand = aliases.get(aliasName)
 	if (command) {
 		aliases.set(aliasName, command)
-		reply(`Alias \`${aliasName}\` created!`)
+		reply(`Alias \`${aliasName}\` created${oldCommand ? ` (was \`${oldCommand}\`)` : ''}!`)
 	} else {
-		const oldCommand = aliases.get(aliasName)
 		aliases.delete(aliasName)
 		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`)
 	}
@@ -37,10 +37,10 @@ export default function help ({ reply }) {
 		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
 
 		For example, you can do
-		> \`/alias set hi "user dm -m \\"Hello!\\" -2 "\`
+		> \`alias set hi "user dm -m \\"Hello!\\" -2 "\`
 		to create an alias, then you can use the alias by doing
-		> \`/hi @Gamepro5\`
+		> \`hi @Gamepro5\`
 		which is equivalent to
-		> \`/user dm -m "Hello!" -2 @Gamepro5\`
+		> \`user dm -m "Hello!" -2 @Gamepro5\`
 	`)
 }
