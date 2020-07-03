@@ -58,14 +58,16 @@ export default async function main (token, Discord) {
 		if (!command) {
 			return {
 				message: 'Tip: do \`help commands\` for a list of commands.',
-				trace: ['@empty', ...context.trace]
+				trace: ['@empty', ...context.trace],
+				prefixIgnore: true
 			}
 		}
 		const match = command.match(commandParser)
 		if (!match) {
 			return {
 				message: 'Invalid syntax; command names may only contain letters, numbers, and underscores.',
-				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
+				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace],
+				prefixIgnore: true
 			}
 		}
 		const [matched, rawCommandName, subCommandName] = match
@@ -101,7 +103,8 @@ export default async function main (token, Discord) {
 		} else {
 			return {
 				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
-				trace: context.trace
+				trace: [`@unknown/${commandName}`, context.trace],
+				prefixIgnore: true
 			}
 		}
 		let parser
@@ -126,7 +129,7 @@ export default async function main (token, Discord) {
 			// Is this a good idea? lol
 			run: command => {
 				// Clone `trace` lol
-				const { trace, ...otherContext } = context
+				const { trace, prefixIgnore: _, ...otherContext } = context
 				return runCommand(command, { trace: [...trace], ...otherContext })
 			}
 		}
@@ -153,17 +156,25 @@ export default async function main (token, Discord) {
 
 	function removePrefix (message) {
 		const prefix = client.data.get({args:['prefix']})
-		if (message.startsWith(prefix)) return message.slice(prefix.length)
+		if (message.startsWith(prefix)) {
+			return {
+				command: message.slice(prefix.length),
+				directMention: false
+			}
+		}
 		const match = message.match(new RegExp(`^<@!?${client.user.id}>`))
 		if (match) {
-			return message.slice(match[0].length)
+			return {
+				command: message.slice(match[0].length),
+				directMention: true
+			}
 		}
-		return null
+		return { command: null, directMention: false }
 	}
 
 	client.on('message', async msg => {
 		if (!msg.author.bot) {
-			const command = removePrefix(msg.content)
+			const { command, directMention } = removePrefix(msg.content)
 			if (command !== null) {
 				const error = await runCommand(command, {
 					msg,
@@ -211,17 +222,21 @@ export default async function main (token, Discord) {
 							)
 						}
 					} else if (error.trace) {
-						reply(
-							msg,
-							[
-								'A problem occurred:',
-								error.message,
-								'',
-								'**Trace**',
-								error.trace.join('\n') || '[Top level]'
-							].join('\n'),
-							{ error: true }
-						)
+						// Only send a direct non prefixIgnore error if bot is directly
+						// mentioned (#22)
+						if (!error.prefixIgnore || directMention || error.trace.length > 1) {
+							reply(
+								msg,
+								[
+									'A problem occurred:',
+									error.message,
+									'',
+									'**Trace**',
+									error.trace.join('\n') || '[Top level]'
+								].join('\n'),
+								{ error: true }
+							)
+						}
 					}
 				}
 			}
