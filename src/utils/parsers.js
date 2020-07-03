@@ -109,8 +109,15 @@ class SimpleArgumentParser extends Parser {
 			let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value);
 			return v!==null?v.groups.t !== undefined:SimpleArgumentParser.FAILURE
 		},
-		int: value => parseInt(value)||SimpleArgumentParser.FAILURE,
-		float: value => parseFloat(value)||SimpleArgumentParser.FAILURE
+		int: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseInt(value),
+		float: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseFloat(value),
+		bigint: value => {
+			try {
+				return BigInt(value)
+			} catch (_) {
+				return SimpleArgumentParser.FAILURE
+			}
+		}
 	}
 	constructor(rawOptions={}, dataTypes={}){
 		super();
@@ -140,7 +147,6 @@ class SimpleArgumentParser extends Parser {
 		let validateArg = (name, arg, val) => {
 			let validated = this.dataTypes[arg.class](val);
 			if (validated===SimpleArgumentParser.FAILURE) {
-				console.log(arg.type);
 				if (arg.type === 'optional') {
 					return undefined
 				}

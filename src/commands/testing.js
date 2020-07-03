@@ -118,10 +118,10 @@ async function makeManageRolesRole ({ msg, args: { name }, reply }) {
 	reply('Sure!')
 }
 
-function get ({ client, args: { ['...']: args }, reply }) {
+function get ({ client, args: { ['...']: args = [] }, reply }) {
 	reply('```json\n' + JSON.stringify(client.data.get({args})) + '\n```')
 }
-get.parser = new SimpleArgumentParser({main:'...'})
+get.parser = new SimpleArgumentParser({main:'...', alt: 'all'})
 
 async function set ({ client, args: { ['...']: parsedArgs }, reply }) {
 	const [value, ...args] = parsedArgs
