@@ -135,17 +135,6 @@ function save({client, reply}){
 	reply('saved!')
 }
 
-// Asserts authorization and returns an error if authorization fails
-auth.parser = new SimpleArgumentParser({main:'...'})
-function auth({Discord, msg, reply, args, trace}){
-	if (!authorize(Discord, msg, args['...'])){
-		return {
-			message: `Insufficient permissions; expected at least one of the following permissions: ${args['...'].join(', ')}.`,
-			trace
-		}
-	}
-}
-
 adminOnly.auth = ['administrator']
 function adminOnly({reply, auth}){
 		reply('omg u made it')
@@ -166,7 +155,6 @@ export {
 	sh,
 	save,
 	resolveThing as resolve,
-	auth,
 	adminOnly,
 	makeManageRolesRole
 }

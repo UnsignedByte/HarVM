@@ -344,7 +344,8 @@ class BashlikeArgumentParser extends Parser{
 		isBoolean: value => typeof value === 'boolean',
 		isWord: value => /\w+/.test(value),
 		isArray: Array.isArray,
-		isString: value => typeof value === 'string'
+		isString: value => typeof value === 'string',
+		isNumber: value => !isNaN(value)
 	}
 
 	constructor(optionTypes=null, description=''){

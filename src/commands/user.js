@@ -50,5 +50,5 @@ export {
 	executor
 }
 export default function main ({ reply }) {
-	reply('`user [` `dm` | `executor` `]`')
+	return reply('`user [` `dm` | `executor` `]` ...')
 }
