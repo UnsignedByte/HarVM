@@ -85,6 +85,50 @@ async function runCommand ({ args, run, env, trace }) {
 	}
 }
 
+async function params ({ args: { commands, params, values }, run, env }) {
+	for (let i = 0; i < params.length; i++) {
+		env.set(params[i], values[i] || '')
+	}
+	return await run(`batch ${env.get(commands)}`)
+}
+const paramValuesParser = new BashlikeArgumentParser([
+	{
+		name: '...',
+		validate: 'isArray'
+	}
+])
+const paramsExample = `\`\`\`py
+@wrapper alias set divide "batch $(wrapper)"
+	@main
+		data op -a dividend / -b divisor -> quotient
+		data log "$(dividend) / $(divisor) = $(quotient)"
+	data params dividend divisor -c main --
+
+# Outputs "6 / 3 = 2"
+divide 6 3
+\`\`\``
+params.parser = new BashlikeArgumentParser([
+	{
+		name: 'commands',
+		aliases: ['c'],
+		validate: 'isString',
+		description: 'The variable name containing the code to be run with `batch` after setting the parameter values.'
+	},
+	{
+		name: 'params',
+		aliases: ['...'],
+		validate: 'isArray',
+		description: 'The names of the parameters.'
+	},
+	{
+		name: 'values',
+		aliases: ['--'],
+		validate: 'isString',
+		transform: (unparsed, env) => paramValuesParser.parse(unparsed, env)['...'],
+		description: 'The respective values of each parameter.'
+	}
+], `A convenience command for declaring aliased batch commands (ABCs) that support multiple parameters. Example:\n${paramsExample}`)
+
 log.parser = new BashlikeArgumentParser([
 	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
 ])
@@ -101,5 +145,6 @@ export {
 	set,
 	op,
 	runCommand as run,
-	log
+	log,
+	params,
 }
