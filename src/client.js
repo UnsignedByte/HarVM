@@ -10,7 +10,7 @@ export default async function main (token, Discord) {
 	const client = new Client()
 
 	client.data = await dataManager();
-	client.commands = Object.keys(commands)
+	client.commands = commands
 
 	const aliases = new Map(client.data.get({args:['aliases'],def:[]}))
 	const aliasUtil = {
@@ -30,11 +30,15 @@ export default async function main (token, Discord) {
 	// TODO: We can make this fancier by making a standard embed response thing
 	function reply (msg, message, {
 		error = false,
-		fields = []
+		fields = [],
+		title = 'Hi,'
 	} = {}) {
 		return msg.channel.send('', {
 			embed: {
-				title: 'Hi,',
+				title,
+				description: message,
+				fields,
+				color: error ? 0xff0000 : null, // TODO: Better colours lol
 				footer: {
 					text: `Requested by ${msg.author.tag}`,
 					icon_url: msg.author.displayAvatarURL({
@@ -42,10 +46,7 @@ export default async function main (token, Discord) {
 						dynamic: true
 					})
 				},
-				color: error ? 0xff0000 : null, // TODO: Better colours lol
-				timestamp: new Date().toISOString(),
-				description: message,
-				fields
+				timestamp: new Date().toISOString()
 			}
 		})
 	}

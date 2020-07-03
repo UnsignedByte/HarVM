@@ -119,8 +119,9 @@ class SimpleArgumentParser extends Parser {
 			}
 		}
 	}
-	constructor(rawOptions={}, dataTypes={}){
+	constructor(rawOptions={}, dataTypes={}, description = 'Refer to the possible syntaxes below.'){
 		super();
+		this.description = description
 		this.rawOptions = rawOptions;
 		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
 		this.options = Object.entries(rawOptions).map(([name, option]) => {
@@ -140,7 +141,10 @@ class SimpleArgumentParser extends Parser {
 	}
 
 	toString(){
-		return Object.entries(this.rawOptions).map(([name, raw]) => `${name}: \`${raw}\``).join('\n');
+		return this.description + '\n\n' +
+			Object.entries(this.rawOptions)
+				.map(([name, raw]) => `${name}: \`${raw}\``)
+				.join('\n');
 	}
 
 	parse(unparsedArgs, env){

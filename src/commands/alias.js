@@ -6,7 +6,9 @@ export function list ({ aliasUtil: { aliases }, reply }) {
 	}).join('\n') || 'No aliases created yet.')
 }
 
-set.parser = new SimpleArgumentParser({ main: '<aliasName> [command]' })
+set.parser = new SimpleArgumentParser({
+	main: '<aliasName> [command]'
+}, {}, 'Creates a new alias that is substituted with the given command, overwriting the previous one if it exists. If no command is given, it deletes the alias if it exists.')
 export function set ({
 	aliasUtil: { aliases, saveAliases },
 	reply,
