@@ -109,38 +109,60 @@ class SimpleArgumentParser extends Parser {
 			let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value);
 			return v!==null?v.groups.t !== undefined:SimpleArgumentParser.FAILURE
 		},
-		int: value => parseInt(value)||SimpleArgumentParser.FAILURE,
-		float: value => parseFloat(value)||SimpleArgumentParser.FAILURE
+		int: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseInt(value),
+		float: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseFloat(value),
+		bigint: value => {
+			try {
+				return BigInt(value)
+			} catch (_) {
+				return SimpleArgumentParser.FAILURE
+			}
+		}
 	}
-	constructor(rawOptions={}, dataTypes={}){
+	constructor(rawOptions={}, dataTypes={}, description = 'Refer to the possible syntaxes below.'){
 		super();
+		this.description = description
 		this.rawOptions = rawOptions;
 		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
 		this.options = Object.entries(rawOptions).map(([name, option]) => {
+			const args = option.split(/\s+/)
+			const commentIndex = args.indexOf('#')
 			return {
 				name,
 				// Parse and validate the argument syntax
-				syntax: option.split(/\s+/).map(argument => {
-					// loop through all argTypes and try to match each
-					for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
-						let match = reg.exec(argument);
-						if (match) return Object.assign({type:type}, match.groups);
-					}
-					throw new Error(`Invalid syntax: ${argument} is not a valid argument type`)
-				})
+				syntax: args.slice(0, commentIndex > -1 ? commentIndex : args.length)
+					.map(argument => {
+						// loop through all argTypes and try to match each
+						for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
+							let match = reg.exec(argument);
+							if (match) return Object.assign({type:type}, match.groups);
+						}
+						throw new Error(`Invalid syntax: ${argument} is not a valid argument component`)
+					})
 			}
 		})
 	}
 
 	toString(){
-		return Object.entries(this.rawOptions).map(([name, raw]) => `${name}: \`${raw}\``).join('\n');
+		return this.description + '\n\n' +
+			Object.entries(this.rawOptions)
+				.map(([name, raw]) => {
+					const commentIndex = raw.indexOf('#')
+					return `${name}: \`${
+						raw.slice(0, commentIndex > -1 ? commentIndex : raw.length)
+					}\`${
+						commentIndex > -1
+							? `\n  ${raw.slice(commentIndex + 1).trim()}`
+							: ''
+					}`
+				})
+				.join('\n');
 	}
 
 	parse(unparsedArgs, env){
 		let validateArg = (name, arg, val) => {
 			let validated = this.dataTypes[arg.class](val);
 			if (validated===SimpleArgumentParser.FAILURE) {
-				console.log(arg.type);
 				if (arg.type === 'optional') {
 					return undefined
 				}
@@ -344,7 +366,8 @@ class BashlikeArgumentParser extends Parser{
 		isBoolean: value => typeof value === 'boolean',
 		isWord: value => /\w+/.test(value),
 		isArray: Array.isArray,
-		isString: value => typeof value === 'string'
+		isString: value => typeof value === 'string',
+		isNumber: value => !isNaN(value)
 	}
 
 	constructor(optionTypes=null, description=''){

@@ -7,7 +7,7 @@ function collect ({ client, msg, reply }) {
 }
 
 function data ({ client, reply }) {
-	reply('```\n' + JSON.stringify(client.data.raw()) + '\n```')
+	reply('```json\n' + JSON.stringify(client.data.raw).slice(0, 2000) + '\n```')
 }
 
 function args ({ unparsedArgs, reply }) {
@@ -118,10 +118,10 @@ async function makeManageRolesRole ({ msg, args: { name }, reply }) {
 	reply('Sure!')
 }
 
-function get ({ client, args: { ['...']: args }, reply }) {
-	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```')
+function get ({ client, args: { ['...']: args = [] }, reply }) {
+	reply('```json\n' + JSON.stringify(client.data.get({args})) + '\n```')
 }
-get.parser = new SimpleArgumentParser({main:'...'})
+get.parser = new SimpleArgumentParser({main:'...', alt: 'all'})
 
 async function set ({ client, args: { ['...']: parsedArgs }, reply }) {
 	const [value, ...args] = parsedArgs
@@ -133,17 +133,6 @@ set.parser = new SimpleArgumentParser({main:'...'})
 function save({client, reply}){
 	client.data.save();
 	reply('saved!')
-}
-
-// Asserts authorization and returns an error if authorization fails
-auth.parser = new SimpleArgumentParser({main:'...'})
-function auth({Discord, msg, reply, args, trace}){
-	if (!authorize(Discord, msg, args['...'])){
-		return {
-			message: `Insufficient permissions; expected at least one of the following permissions: ${args['...'].join(', ')}.`,
-			trace
-		}
-	}
 }
 
 adminOnly.auth = ['administrator']
@@ -166,7 +155,6 @@ export {
 	sh,
 	save,
 	resolveThing as resolve,
-	auth,
 	adminOnly,
 	makeManageRolesRole
 }

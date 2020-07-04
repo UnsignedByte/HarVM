@@ -12,3 +12,6 @@ data/token.txt
 
 # Bot data (when running in Node)
 data/data.json
+
+# Manual backups
+data/data-backup-*.json
