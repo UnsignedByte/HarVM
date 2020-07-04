@@ -104,7 +104,7 @@ export default async function main (token, Discord) {
 		} else {
 			return {
 				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
-				trace: [`@unknown/${commandName}`, context.trace],
+				trace: [`@unknown/${commandName}`, ...context.trace],
 				prefixIgnore: true
 			}
 		}
