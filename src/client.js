@@ -124,7 +124,10 @@ export default async function main (token, Discord) {
 			},
 			msg,
 			env: context.env,
-			reply: (...args) => reply(msg, ...args),
+			reply: (...args) => {
+				// return reply(msg, ...args)
+				context.output.push(args)
+			},
 			aliasUtil,
 			trace: context.trace,
 			// Is this a good idea? lol
@@ -177,7 +180,7 @@ export default async function main (token, Discord) {
 		if (!msg.author.bot) {
 			const { command, directMention } = removePrefix(msg.content)
 			if (command !== null) {
-				const error = await runCommand(command, {
+				const context = {
 					msg,
 					// `env` is for storing variables in case we want to do that
 					// in the future, lol
@@ -188,8 +191,10 @@ export default async function main (token, Discord) {
 					// people for how many commands they run to discourage complex
 					// computations
 					calls: 0,
-					trace: []
-				})
+					trace: [],
+					output: []
+				}
+				const error = await runCommand(command, context)
 					.catch(err => {
 						const id = Math.random().toString(36).slice(2)
 						console.log(id, err)
@@ -238,6 +243,26 @@ export default async function main (token, Discord) {
 								{ error: true }
 							)
 						}
+					}
+				} else {
+					if (context.output.length === 0) {
+						await msg.react('👌')
+					} else if (context.output.length === 1) {
+						await reply(msg, ...context.output[0])
+					} else {
+						await reply(
+							msg,
+							context.output
+								.map(([output, options = {}]) => {
+									return (options.title ? `**${options.title}**` : '') +
+										output +
+										(options.fields && options.fields.length ? '\n[fields omitted]' : '')
+								})
+								.join('\n\n'),
+							{
+								title: `Output of ${context.output.length} commands`
+							}
+						)
 					}
 				}
 			}
