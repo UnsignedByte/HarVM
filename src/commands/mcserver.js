@@ -1,8 +1,9 @@
 import { isNode } from '../utils/node.js'
 import { BashlikeArgumentParser } from '../utils/parsers.js'
+import fetch from 'node-fetch'
 
 function main ({ reply }) {
-	reply('Usage: `mcserver [status]`')
+	reply('Usage: `mcserver [status|webtoon]`')
 }
 
 export default main
@@ -124,6 +125,26 @@ status.parser = new BashlikeArgumentParser([
 		? 'Fortunately, the bot is running on Node, so this will work.'
 		: 'Unfortunately, the bot is not running on Node, so this command will not work.'))
 
+async function webtoon ({ args: { url }, reply, trace }) {
+	const page = await fetch(url)
+		.then(r => r.ok ? r.text() : Promise.reject(new Error(r.status + ' error')))
+	const match = page.match(/<span class="subj"><span>(.+?)<\/span><\/span>/)
+	if (match) {
+		await reply(`[${match[1]}](${url})`)
+	} else {
+		return { message: 'Couldn\'t find latest episode.', trace }
+	}
+}
+webtoon.parser = new BashlikeArgumentParser([
+	{
+		name: 'url',
+		aliases: ['U'],
+		validate: 'isString',
+		description: 'The URL of the Webtoon\'s episode list.'
+	}
+], 'Gets the name of the latest episode of a Webtoon. Please let it not cross your curiosity why this command is in the `mcserver` module.')
+
 export {
-	status
+	status,
+	webtoon
 }
