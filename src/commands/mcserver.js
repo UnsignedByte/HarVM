@@ -128,7 +128,7 @@ status.parser = new BashlikeArgumentParser([
 async function webtoon ({ args: { url }, reply, trace }) {
 	const page = await fetch(url)
 		.then(r => r.ok ? r.text() : Promise.reject(new Error(r.status + ' error')))
-	const match = page.match(/<span class="subj"><span>(.+?)<\/span><\/span>/)
+	const match = page.match(/<span class="subj"><span>(.+?)<\/span>/)
 	if (match) {
 		await reply(`[${match[1]}](${url})`)
 	} else {
