@@ -128,9 +128,9 @@ status.parser = new BashlikeArgumentParser([
 async function webtoon ({ args: { url }, reply, trace }) {
 	const page = await fetch(url)
 		.then(r => r.ok ? r.text() : Promise.reject(new Error(r.status + ' error')))
-	const match = page.match(/<span class="subj"><span>(.+?)<\/span>/)
+	const match = page.match(/<span class="subj"><span>(.+?)<\/span>(?:(<em class="tx_up">)|<\/span>)/)
 	if (match) {
-		await reply(`[${match[1]}](${url})`)
+		await reply(`[${match[1]}](${url})` + (match[2] ? ' **UP**' : ''))
 	} else {
 		return { message: 'Couldn\'t find latest episode.', trace }
 	}
