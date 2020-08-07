@@ -108,6 +108,13 @@ export default async function main (token, Discord) {
 				prefixIgnore: true
 			}
 		}
+		if (commandFn.auth) {
+			let authorized = authorize(Discord, msg, commandFn.auth)
+			if (!authorized) return {
+				message: `Insufficient Permissions to Run Command. The following permissions are required for authorization:\n\`${commandFn.auth.join('`\n`')}\``,
+				trace: context.trace
+			}
+		}
 		let parser
 		const bridge = {
 			Discord,
@@ -117,10 +124,6 @@ export default async function main (token, Discord) {
 			get args() {
 				if (!parser) parser = commandFn.parser||new Parser()
 				return parser.parse(unparsedArgs, context.env)
-			},
-			get auth() {
-				let authorized = authorize(Discord, msg, commandFn.auth)
-				if (!authorized) throw new Error(`Insufficient Permissions to Run Command. The following permissions are required for authorization:\n\`${commandFn.auth.join('`\n`')}\``)
 			},
 			msg,
 			env: context.env,
