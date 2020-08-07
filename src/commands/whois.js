@@ -24,7 +24,7 @@ function whois ({ args, reply, client, msg, trace }) {
 }
 whois.parser = new SimpleArgumentParser({
 	user: '<user>'
-})
+}, null, 'Example: \`whois "Gamepro5"\`')
 
 function help ({ reply }) {
 	reply(`Use \`whois <user>\` to get information about the given user.\n\nServer managers will have to first link the whois information with a .tsv of URL. Do \`whois fetch -h\` for more information.`)
@@ -75,8 +75,72 @@ fetch.parser = new BashlikeArgumentParser([
 	}
 ], 'Fetches spreadsheet .tsv data from a URL and other information about users. The first row should be the names of each column. Option values are stored after the first call, so you can run `whois fetch` to update the data.\n\nIf fetching from a Google Sheet, you can use the URL `https://docs.google.com/spreadsheets/d/e/<ID>/pub?single=true&output=tsv`.')
 
+function search ({ args: { column, value, includes, target }, reply, trace, env, client }) {
+	column = column.toLowerCase()
+	if (value) {
+		value = value.toLowerCase()
+	} else if (includes) {
+		includes = includes.toLowerCase()
+	} else {
+		return { message: 'You must specify either the `value` or `includes` option.', trace }
+	}
+	const whois = client.data.get({ args: ['whois'], def: null })
+	if (!whois) {
+		return { message: 'No whois information available. Do \`whois help\` for more information.', trace }
+	}
+	const matches = Object.entries(whois)
+		.map(([id, info]) => {
+			const key = Object.keys(info).find(key => key.toLowerCase() === column)
+			if (key) {
+				const val = info[key].toLowerCase()
+				return (value ? value === val : val.includes(includes))
+					? [id, info[key]]
+					: null
+			} else {
+				return null
+			}
+		})
+		.filter(match => match)
+	if (target) {
+		env.set(target, matches.map(([id]) => id).join('\n'))
+	} else {
+		const str = matches.map(([id, value]) => `<@${id}>: ${value}`).join('\n')
+		return reply(str.length > 2000 ? str.slice(0, 2000) + `...\n[${matches.length} total]` : str)
+	}
+}
+search.parser = new BashlikeArgumentParser([
+	{
+		name: 'column',
+		aliases: ['C'],
+		validate: 'isString',
+		description: 'The column name to search by (for example, `"first name"`).'
+	},
+	{
+		name: 'value',
+		aliases: ['v', 'is'],
+		validate: 'isString',
+		description: 'The value to search for under the column. It\'ll do an exact but case insensitive match.',
+		optional: true
+	},
+	{
+		name: 'includes',
+		aliases: ['H', 'has'],
+		validate: 'isString',
+		description: 'The value to search for under the column. It\'ll check if the user\'s value includes the given string.',
+		optional: true
+	},
+	{
+		name: 'target',
+		aliases: ['>'],
+		validate: 'isString',
+		description: 'A variable name to store the user IDs in, separated by newlines. If specified, it suppresses the output.',
+		optional: true
+	}
+], 'Searches the whois data by the given column name and value. Outputs a list of mentions.\n\nExample: `whois search -C "first name" -v "sean"`')
+
 export {
 	help,
-	fetch
+	fetch,
+	search
 }
 export default whois

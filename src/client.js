@@ -256,7 +256,9 @@ export default async function main (token, Discord) {
 								.map(([output, options = {}]) => {
 									return (options.title ? `**${options.title}**` : '') +
 										output +
-										(options.fields && options.fields.length ? '\n[fields omitted]' : '')
+										(options.fields || [])
+											.map(({ name, value }) => `\n**${name}**\n${value}`)
+											.join('')
 								})
 								.join('\n\n'),
 							{

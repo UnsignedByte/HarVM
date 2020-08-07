@@ -586,9 +586,13 @@ class BashlikeArgumentParser extends Parser{
 					if (currentToken) throw new ParserError(`Required space before option (was parsing "${currentToken}").`)
 					if (expectValueNext) throw new ParserError(`Option "${expectValueNext}" expects a value.`)
 					optionType = 'single'
-				} else if (char === '"' || char === '\'' || char === '`') {
+				} else if (char === '"' || char === '\'' || char === '`' || char === '“') {
 					if (currentToken) throw new ParserError(`Required space before string (was parsing "${currentToken}").`)
-					inString = char
+					if (char === '“') {
+						inString = '”'
+					} else {
+						inString = char
+					}
 				} else if (isWhitespace(char)) {
 					if (currentToken) {
 						// If `currentToken` isn't empty, then there were non-whitespace
