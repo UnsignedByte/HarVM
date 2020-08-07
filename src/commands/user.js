@@ -46,16 +46,14 @@ executor.parser = new BashlikeArgumentParser([
 ], 'Store the @mention of the user running the command in a variable. Example: `user executor -> me`.')
 
 function compat ({ args: { userA, userB }, msg, reply, trace }) {
-	userA = resolve.member(msg, userA)
-	if (!userA) return { message: `Could not resolve the first person; are they on this server?`, trace }
-	userB = resolve.member(msg, userB)
-	if (!userB) return { message: `Could not resolve the second person; are they on this server?`, trace }
-	// I can tolerate the loss of precision here from converting snowflakes to
-	// floats
-	const userAId = +userA.id
-	const userBId = +userB.id
-	reply(`${userA} and ${userB} are ${
-		(1 / (Math.abs(userAId - userBId) / 2e17 + 1) * 100).toFixed(2)
+	userA = resolve.memberId(msg, userA)
+	if (!userA) return { message: `Could not resolve the first person; try mentioning them or giving their ID.`, trace }
+	userB = resolve.memberId(msg, userB)
+	if (!userB) return { message: `Could not resolve the second person; try mentioning them or giving their ID.`, trace }
+	reply(`<@${userA}> and <@${userB}> are ${
+		// I can tolerate the loss of precision here from converting snowflakes to
+		// floats
+		(1 / (Math.abs(+userA - +userB) / 2e17 + 1) * 100).toFixed(2)
 	}% compatible!`)
 }
 compat.parser = new SimpleArgumentParser({
