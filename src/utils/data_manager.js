@@ -21,10 +21,10 @@ class DataManager {
 	async init(){
 		if (isNode()) {
 			//if using node
-			const url = new URL(`../../data/${this.loc}.json`, import.meta.url)
+			const dataPath = `./data/${this.loc}.json` // Relative to working directory (!)
 			// const { promises: fs } = require('fs')
 			const { promises: fs } = await import('fs')
-			this.raw = JSON.parse(await fs.readFile(url, 'utf8').catch(err => {
+			this.raw = JSON.parse(await fs.readFile(dataPath, 'utf8').catch(err => {
 					// If the file doesn't exist, return null like what localStorage does
 					if (err.code === 'ENOENT') {
 						return null
@@ -32,7 +32,7 @@ class DataManager {
 						return Promise.reject(err)
 					}
 				}))||{}
-			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw, null, '\t'))
+			this.save = async ()=>await fs.writeFile(dataPath, JSON.stringify(this.raw, null, '\t'))
 		} else {
 			//if not
 			const url = `[HarVM] ${this.loc}`;
