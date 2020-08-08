@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "rollup -c",
+    "build:cjs": "rollup -c rollup-cjs.config.js",
     "start": "node src/node.js",
+    "start:cjs": "node build/node.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "rollup -c --watch"
   },
