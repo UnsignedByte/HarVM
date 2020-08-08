@@ -15,3 +15,6 @@ data/data.json
 
 # Manual backups
 data/data-backup-*.json
+
+# CommonJS build
+build/node.cjs
