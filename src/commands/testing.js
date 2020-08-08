@@ -140,8 +140,13 @@ function adminOnly({reply, auth}){
 		reply('omg u made it')
 }
 
+manageRoles.auth = ['manage roles']
+function manageRoles({reply, auth}){
+		reply('omg u made it')
+}
+
 function main ({ reply, unparsedArgs }) {
-	reply('Usage: testing [collect|data|args|simple|sh|resolve|makeManageRolesRole|get|set|save|auth|adminOnly] ...' +
+	reply('Usage: testing [collect|data|args|simple|sh|resolve|makeManageRolesRole|get|set|save|adminOnly|manageRoles] ...' +
 		'\n```\n' + unparsedArgs + '\n```')
 }
 
@@ -156,6 +161,7 @@ export {
 	save,
 	resolveThing as resolve,
 	adminOnly,
-	makeManageRolesRole
+	makeManageRolesRole,
+	manageRoles
 }
 export default main

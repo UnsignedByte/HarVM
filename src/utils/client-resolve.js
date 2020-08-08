@@ -56,6 +56,30 @@ function member (msg, input) {
 }
 
 /**
+ * This is very similar to `member` but it only returns the user ID, so the
+ * given user doesn't need to be on the guild.
+ * @param {Discord.Client} client - The bot client.
+ * @param {string} input - User input that may refer to an actual Discord user.
+ * @returns {?Discord.User}
+ */
+function memberId (msg, input) {
+	input = input.toLowerCase()
+
+	let id = getID(input)
+	if (id) return id
+
+	// Try matching by username/nickname
+	const member = msg.guild.members.cache.find(member => {
+		// Possible issue: If someone's nickname is someone else's username, the
+		// former might get matched first.
+		return member.nickname && member.nickname.toLowerCase() === input ||
+			member.user.username.toLowerCase() === input ||
+			member.user.tag.toLowerCase() === input
+	})
+	return member ? member.id : null
+}
+
+/**
  * This is very similar to `member` but it matches a User object. Note that
  * nicknames won't work here.
  * @param {Discord.Client} client - The bot client.
@@ -137,6 +161,7 @@ function channel (msg, input) {
 
 export {
 	member,
+	memberId,
 	user,
 	role,
 	channel

@@ -1,6 +1,6 @@
 // Basically the same as the control blocks in Scratch lol
 
-import { BashlikeArgumentParser } from '../utils/parsers.js'
+import { BashlikeArgumentParser, SimpleArgumentParser } from '../utils/parsers.js'
 
 ifCondition.parser = new BashlikeArgumentParser([
 	{ name: 'values', aliases: ['...'], validate: 'isArray' }
@@ -38,13 +38,26 @@ cond.parser = new BashlikeArgumentParser([
 	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
 ])
 
-// Could add loops here too, uauau
+async function each ({ args: { line: lineVar, lines: linesVar, command }, run, env }) {
+	const lines = env.get(linesVar)
+	if (lines) {
+		for (const line of lines.split(/\r?\n/)) {
+			env.set(lineVar, line)
+			const err = await run(command)
+			if (err) return err
+		}
+	}
+}
+each.parser = new SimpleArgumentParser({
+	main: '<line> in <lines> do <command>'
+}, null, 'Sets the variable given as `line` to each line in `lines` and then runs `command`.')
 
 export default function main ({ reply }) {
-	reply('Usage: control [if|cond] ...')
+	reply('Usage: control [if|cond|each] ...')
 }
 
 export {
 	ifCondition as if,
 	cond,
+	each
 }
