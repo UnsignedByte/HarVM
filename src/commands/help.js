@@ -53,7 +53,7 @@ command.parser = new SimpleArgumentParser({
 }, {}, 'Gives more information about the given command.')
 
 function main({ reply }){
-	reply('Usage: help [commands|command]')
+	reply('Usage: help commands|command ...')
 }
 
 export {
