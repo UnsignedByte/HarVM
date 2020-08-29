@@ -2,7 +2,7 @@
 * @Author: UnsignedByte
 * @Date:   11:56:39, 25-May-2020
 * @Last Modified by:   UnsignedByte
-* @Last Modified time: 23:29:31, 03-Jun-2020
+* @Last Modified time: 11:56:51, 29-Aug-2020
 */
 
 import { isNode } from './node.js'
@@ -79,9 +79,9 @@ class DataManager {
 	 * @param {*} value - The value to set at the given location.
 	 */
 	// Shallow clone the `args` array because it is modified using .pop.
-	set({def, args: [...args]}, value){
+	set({args: [...args]}, value){
 		const lastArg = args.pop()
-		this.get({args})[lastArg] = value;
+		this.get({ args })[lastArg] = value;
 	}
 }
 

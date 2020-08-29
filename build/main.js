@@ -215,38 +215,60 @@
   			let v=/^(?<t>t(?:rue)?|1|y(?:es)?)|(?:f(?:alse)?|0|no?)$/i.exec(value);
   			return v!==null?v.groups.t !== undefined:SimpleArgumentParser.FAILURE
   		},
-  		int: value => parseInt(value)||SimpleArgumentParser.FAILURE,
-  		float: value => parseFloat(value)||SimpleArgumentParser.FAILURE
+  		int: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseInt(value),
+  		float: value => isNaN(value) ? SimpleArgumentParser.FAILURE : parseFloat(value),
+  		bigint: value => {
+  			try {
+  				return BigInt(value)
+  			} catch (_) {
+  				return SimpleArgumentParser.FAILURE
+  			}
+  		}
   	}
-  	constructor(rawOptions={}, dataTypes={}){
+  	constructor(rawOptions={}, dataTypes={}, description = 'Refer to the possible syntaxes below.'){
   		super();
+  		this.description = description;
   		this.rawOptions = rawOptions;
   		this.dataTypes = Object.assign(SimpleArgumentParser.builtInDataTypes, dataTypes);
   		this.options = Object.entries(rawOptions).map(([name, option]) => {
+  			const args = option.split(/\s+/);
+  			const commentIndex = args.indexOf('#');
   			return {
   				name,
   				// Parse and validate the argument syntax
-  				syntax: option.split(/\s+/).map(argument => {
-  					// loop through all argTypes and try to match each
-  					for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
-  						let match = reg.exec(argument);
-  						if (match) return Object.assign({type:type}, match.groups);
-  					}
-  					throw new Error(`Invalid syntax: ${argument} is not a valid argument type`)
-  				})
+  				syntax: args.slice(0, commentIndex > -1 ? commentIndex : args.length)
+  					.map(argument => {
+  						// loop through all argTypes and try to match each
+  						for (let [type, reg] of Object.entries(SimpleArgumentParser.argTypes)){
+  							let match = reg.exec(argument);
+  							if (match) return Object.assign({type:type}, match.groups);
+  						}
+  						throw new Error(`Invalid syntax: ${argument} is not a valid argument component`)
+  					})
   			}
   		});
   	}
 
   	toString(){
-  		return Object.entries(this.rawOptions).map(([name, raw]) => `${name}: \`${raw}\``).join('\n');
+  		return this.description + '\n\n' +
+  			Object.entries(this.rawOptions)
+  				.map(([name, raw]) => {
+  					const commentIndex = raw.indexOf('#');
+  					return `${name}: \`${
+						raw.slice(0, commentIndex > -1 ? commentIndex : raw.length)
+					}\`${
+						commentIndex > -1
+							? `\n  ${raw.slice(commentIndex + 1).trim()}`
+							: ''
+					}`
+  				})
+  				.join('\n');
   	}
 
   	parse(unparsedArgs, env){
   		let validateArg = (name, arg, val) => {
   			let validated = this.dataTypes[arg.class](val);
   			if (validated===SimpleArgumentParser.FAILURE) {
-  				console.log(arg.type);
   				if (arg.type === 'optional') {
   					return undefined
   				}
@@ -450,7 +472,8 @@
   		isBoolean: value => typeof value === 'boolean',
   		isWord: value => /\w+/.test(value),
   		isArray: Array.isArray,
-  		isString: value => typeof value === 'string'
+  		isString: value => typeof value === 'string',
+  		isNumber: value => !isNaN(value)
   	}
 
   	constructor(optionTypes=null, description=''){
@@ -669,9 +692,13 @@
   					if (currentToken) throw new ParserError(`Required space before option (was parsing "${currentToken}").`)
   					if (expectValueNext) throw new ParserError(`Option "${expectValueNext}" expects a value.`)
   					optionType = 'single';
-  				} else if (char === '"' || char === '\'' || char === '`') {
+  				} else if (char === '"' || char === '\'' || char === '`' || char === '“') {
   					if (currentToken) throw new ParserError(`Required space before string (was parsing "${currentToken}").`)
-  					inString = char;
+  					if (char === '“') {
+  						inString = '”';
+  					} else {
+  						inString = char;
+  					}
   				} else if (isWhitespace(char)) {
   					if (currentToken) {
   						// If `currentToken` isn't empty, then there were non-whitespace
@@ -908,6 +935,30 @@
   }
 
   /**
+   * This is very similar to `member` but it only returns the user ID, so the
+   * given user doesn't need to be on the guild.
+   * @param {Discord.Client} client - The bot client.
+   * @param {string} input - User input that may refer to an actual Discord user.
+   * @returns {?Discord.User}
+   */
+  function memberId (msg, input) {
+  	input = input.toLowerCase();
+
+  	let id = getID(input);
+  	if (id) return id
+
+  	// Try matching by username/nickname
+  	const member = msg.guild.members.cache.find(member => {
+  		// Possible issue: If someone's nickname is someone else's username, the
+  		// former might get matched first.
+  		return member.nickname && member.nickname.toLowerCase() === input ||
+  			member.user.username.toLowerCase() === input ||
+  			member.user.tag.toLowerCase() === input
+  	});
+  	return member ? member.id : null
+  }
+
+  /**
    * This is very similar to `member` but it matches a User object. Note that
    * nicknames won't work here.
    * @param {Discord.Client} client - The bot client.
@@ -1050,7 +1101,7 @@
   }
 
   function data ({ client, reply }) {
-  	reply('```\n' + JSON.stringify(client.data.raw()) + '\n```');
+  	reply('```json\n' + JSON.stringify(client.data.raw).slice(0, 2000) + '\n```');
   }
 
   function args ({ unparsedArgs, reply }) {
@@ -1161,29 +1212,21 @@
   	reply('Sure!');
   }
 
-  function get ({ client, unparsedArgs, reply }) {
-  	const args = unparsedArgs.split(/\s+/).filter(arg => arg);
-  	reply('```\n' + JSON.stringify(client.data.get({args})) + '\n```');
+  function get ({ client, args: { ['...']: args = [] }, reply }) {
+  	reply('```json\n' + JSON.stringify(client.data.get({args})) + '\n```');
   }
+  get.parser = new SimpleArgumentParser({main:'...', alt: 'all'});
 
-  async function set ({ client, unparsedArgs, reply }) {
-  	const [value, ...args] = unparsedArgs.split(/\s+/);
+  async function set ({ client, args: { ['...']: parsedArgs }, reply }) {
+  	const [value, ...args] = parsedArgs;
   	await client.data.set({args}, value);
   	reply('success');
   }
+  set.parser = new SimpleArgumentParser({main:'...'});
 
   function save({client, reply}){
   	client.data.save();
   	reply('saved!');
-  }
-
-  auth.parser = new SimpleArgumentParser({main:'...'});
-  function auth({Discord, msg, reply, args}){
-  	if (authorize(Discord, msg, args['...'])){
-  		reply('yes lol');
-  	}else {
-  		reply('no lmao');
-  	}
   }
 
   adminOnly.auth = ['administrator'];
@@ -1191,8 +1234,13 @@
   		reply('omg u made it');
   }
 
+  manageRoles.auth = ['manage roles'];
+  function manageRoles({reply, auth}){
+  		reply('omg u made it');
+  }
+
   function main ({ reply, unparsedArgs }) {
-  	reply('Usage: testing [collect|data|args|simple|sh|resolve|makeManageRolesRole|get|set|save|auth|adminOnly] ...' +
+  	reply('Usage: testing [collect|data|args|simple|sh|resolve|makeManageRolesRole|get|set|save|adminOnly|manageRoles] ...' +
   		'\n```\n' + unparsedArgs + '\n```');
   }
 
@@ -1207,9 +1255,9 @@
     sh: sh,
     save: save,
     resolve: resolveThing,
-    auth: auth,
     adminOnly: adminOnly,
     makeManageRolesRole: makeManageRolesRole,
+    manageRoles: manageRoles,
     'default': main
   });
 
@@ -1221,16 +1269,59 @@
   */
 
   function commands ({ client: { commands }, reply }) {
-  	reply('Commands: ' + commands.map(cmd => `\`${cmd}\``).join(' '));
+  	reply(`Command modules: ${
+		Object.keys(commands).map(cmd => `\`${cmd}\``).join(' ')
+	}\n\nDo \`help command <module name>\` for more details.`);
   }
+  commands.description = 'Lists all available command modules.';
+
+  function command ({
+  	client: { commands },
+  	args: { module: main, subcommand: sub },
+  	reply,
+  	trace
+  }) {
+  	const mod = commands[main];
+  	if (!mod) {
+  		return {
+  			message: `The command module \`${main}\` does not exist. Do \`help commands\` for a list of command modules.`,
+  			trace
+  		}
+  	}
+  	const commandFn = sub ? mod[sub] : mod.default;
+  	if (!commandFn) {
+  		return {
+  			message: `The command \`${main}${sub ? ` ${sub}` : ''}\` does not exist.`,
+  			trace
+  		}
+  	}
+  	reply(`${
+		commandFn.parser || commandFn.description || 'This command has no description.'
+	}${
+		commandFn.auth ? `\n\nRequired permissions: ${
+			commandFn.auth.map(perm => `\`${perm}\``).join(', ')
+		}` : ''
+	}${sub ? '' : `\n\n**Module subcommands: ${
+		Object.keys(mod)
+			.filter(cmd => cmd !== 'default')
+			.map(cmd => `\`${cmd}\``)
+			.join(' ')
+	}.**\nDo \`help command ${main} <subcommand>\` to learn more about them.`}`, {
+  		title: `Help for \`${main}${sub ? ` ${sub}` : ''}\``
+  	});
+  }
+  command.parser = new SimpleArgumentParser({
+  	main: '<module> [subcommand]'
+  }, {}, 'Gives more information about the given command.');
 
   function main$1({ reply }){
-  	reply('Usage: help [commands]');
+  	reply('Usage: help [commands|command]');
   }
 
   var help = /*#__PURE__*/Object.freeze({
     __proto__: null,
     commands: commands,
+    command: command,
     'default': main$1
   });
 
@@ -1266,15 +1357,20 @@
   	}).join('\n') || 'No aliases created yet.');
   }
 
-  set$1.parser = new SimpleArgumentParser({ main: '<aliasName> [command]' });
-  function set$1 ({ aliasUtil: { aliases, saveAliases }, reply, unparsedArgs }) {
-  	const { aliasName, command } = set$1.parser.parse(unparsedArgs);
+  set$1.parser = new SimpleArgumentParser({
+  	main: '<aliasName> [command]'
+  }, {}, 'Creates a new alias that is substituted with the given command, overwriting the previous one if it exists. If no command is given, it deletes the alias if it exists.');
+  function set$1 ({
+  	aliasUtil: { aliases, saveAliases },
+  	reply,
+  	args: { aliasName, command }
+  }) {
   	if (!/^\w+$/.test(aliasName)) return 'Aliases may only contain letters, numbers, and underscores.'
+  	const oldCommand = aliases.get(aliasName);
   	if (command) {
   		aliases.set(aliasName, command);
-  		reply(`Alias \`${aliasName}\` created!`);
+  		reply(`Alias \`${aliasName}\` created${oldCommand ? ` (was \`${oldCommand}\`)` : ''}!`);
   	} else {
-  		const oldCommand = aliases.get(aliasName);
   		aliases.delete(aliasName);
   		reply(`Alias \`${aliasName}\` deleted (was \`${oldCommand}\`).`);
   	}
@@ -1294,11 +1390,11 @@
 		Alias names can only contain letters, numbers, and underscores. They are case sensitive.
 
 		For example, you can do
-		> \`/alias set hi "user dm -m \\"Hello!\\" -2 "\`
+		> \`alias set hi "user dm -m \\"Hello!\\" -2 "\`
 		to create an alias, then you can use the alias by doing
-		> \`/hi @Gamepro5\`
+		> \`hi @Gamepro5\`
 		which is equivalent to
-		> \`/user dm -m "Hello!" -2 @Gamepro5\`
+		> \`user dm -m "Hello!" -2 @Gamepro5\`
 	`);
   }
 
@@ -1329,7 +1425,7 @@
   	{ name: 'varB', aliases: ['b'], validate: 'isWord' },
   	{ name: 'operation', aliases: ['...'], validate: 'isArray', transform: ([op]) => op }
   ]);
-  function op ({ args, env }) {
+  function op ({ args, env, trace }) {
   	const { outputName, operation, varA, varB } = args;
   	// eg `data op + -a a -b b -> c` will store a + b in c
   	const a = +env.get(varA);
@@ -1354,9 +1450,64 @@
   		case '^':
   			output = a ** b;
   			break
+  		default:
+  			return {
+  				message: 'Invalid operation',
+  				trace
+  			}
   	}
   	if (output !== undefined) env.set(outputName, output);
   }
+
+  function math ({ args: { type, a, b, out }, env, trace }) {
+  	let output;
+  	switch (type) {
+  		case 'add':
+  		case 'addInt':
+  			output = a + b;
+  			break
+  		case 'sub':
+  		case 'subInt':
+  			output = a - b;
+  			break
+  		case 'mult':
+  		case 'multInt':
+  			output = a * b;
+  			break
+  		case 'div':
+  		case 'divInt':
+  			output = a / b;
+  			break
+  		case 'rem':
+  		case 'remInt':
+  			output = (a % b + b) % b;
+  			break
+  		case 'expt':
+  		case 'exptInt':
+  			output = a ** b;
+  			break
+  		default:
+  			return {
+  				message: 'Invalid operation',
+  				trace
+  			}
+  	}
+  	env.set(out, output.toString());
+  }
+  math.parser = new SimpleArgumentParser({
+  	addInt: '<out> bigint<a> plus bigint<b>',
+  	add: '<out> float<a> plus float<b>',
+  	subInt: '<out> bigint<a> minus bigint<b>',
+  	sub: '<out> float<a> minus float<b>',
+  	multInt: '<out> bigint<a> times bigint<b>',
+  	mult: '<out> float<a> times float<b>',
+  	divInt: '<out> bigint<a> divided by bigint<b>',
+  	div: '<out> float<a> divided by float<b>',
+  	remInt: '<out> remainder of bigint<a> divided by bigint<b>',
+  	rem: '<out> remainder of float<a> divided by float<b>',
+  	exptInt: '<out> bigint<a> to the power of bigint<b>',
+  	expt: '<out> float<a> to the power of float<b>'
+  });
 
   runCommand.varsParser = new BashlikeArgumentParser('expect-all');
   runCommand.parser = new BashlikeArgumentParser([
@@ -1384,7 +1535,7 @@
   	// eg `data run "data op -a a + -b b -> sum" "data log '\$(sum)'" -- -a 3 -b 4`
   	// will log 7
   	const { commands, withVars, ignoreError } = args;
-  	console.log(commands, withVars, ignoreError);
+  	// console.log(commands, withVars, ignoreError)
   	// If `withVars` is a string, there was a problem
   	if (withVars) return { message: withVars, trace }
   	for (const command of commands) {
@@ -1392,6 +1543,50 @@
   		if (error && !ignoreError) return error
   	}
   }
+
+  async function params ({ args: { commands, params, values }, run, env }) {
+  	for (let i = 0; i < params.length; i++) {
+  		env.set(params[i], values[i] || '');
+  	}
+  	return await run(`batch ${env.get(commands)}`)
+  }
+  const paramValuesParser = new BashlikeArgumentParser([
+  	{
+  		name: '...',
+  		validate: 'isArray'
+  	}
+  ]);
+  const paramsExample = `\`\`\`py
+@wrapper alias set divide "batch $(wrapper)"
+	@main
+		data op -a dividend / -b divisor -> quotient
+		data log "$(dividend) / $(divisor) = $(quotient)"
+	data params dividend divisor -c main --
+
+# Outputs "6 / 3 = 2"
+divide 6 3
+\`\`\``;
+  params.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'commands',
+  		aliases: ['c'],
+  		validate: 'isString',
+  		description: 'The variable name containing the code to be run with `batch` after setting the parameter values.'
+  	},
+  	{
+  		name: 'params',
+  		aliases: ['...'],
+  		validate: 'isArray',
+  		description: 'The names of the parameters.'
+  	},
+  	{
+  		name: 'values',
+  		aliases: ['--'],
+  		validate: 'isString',
+  		transform: (unparsed, env) => paramValuesParser.parse(unparsed, env)['...'],
+  		description: 'The respective values of each parameter.'
+  	}
+  ], `A convenience command for declaring aliased batch commands (ABCs) that support multiple parameters. Example:\n${paramsExample}`);
 
   log.parser = new BashlikeArgumentParser([
   	{ name: 'output', aliases: ['...'], validate: 'isArray', transform: values => values.join('\n') }
@@ -1411,7 +1606,9 @@
     set: set$2,
     op: op,
     run: runCommand,
-    log: log
+    log: log,
+    params: params,
+    math: math
   });
 
   const getCommands = /^(?:```\w*\r?\n([^]+)\r?\n```|([^=][^]*)|=\s*(\w+)\s*<-\s*(".+"))$/;
@@ -1553,7 +1750,7 @@
   ]);
   function ifCondition ({ args, env, run }) {
   	const { values } = args;
-  	for (let i = 0; i < values.length; i += 1) {
+  	for (let i = 0; i < values.length; i += 2) {
   		if (i === values.length - 1) {
   			// If it's the last item in the array, then it's the else code.
   			return run(values[i])
@@ -1566,16 +1763,48 @@
   	}
   }
 
-  // Could add loops here too, uauau
+  async function cond ({ args: { commands }, run, env }) {
+  	for (let i = 0; i < commands.length; i += 2) {
+  		if (i === commands.length - 1) {
+  			// If it's the last item in the array, then it's the else code.
+  			return run('batch ' + env.get(commands[i]))
+  		} else {
+  			// Error is assumed to be false
+  			const err = await run(commands[i]);
+  			if (!err) {
+  				return run('batch ' + env.get(commands[i + 1]))
+  			}
+  		}
+  	}
+  }
+  cond.parser = new BashlikeArgumentParser([
+  	{ name: 'commands', aliases: ['...'], validate: 'isArray' }
+  ]);
+
+  async function each ({ args: { line: lineVar, lines: linesVar, command }, run, env }) {
+  	const lines = env.get(linesVar);
+  	if (lines) {
+  		for (const line of lines.split(/\r?\n/)) {
+  			env.set(lineVar, line);
+  			const err = await run(command);
+  			if (err) return err
+  		}
+  	}
+  }
+  each.parser = new SimpleArgumentParser({
+  	main: '<line> in <lines> do <command>'
+  }, null, 'Sets the variable given as `line` to each line in `lines` and then runs `command`.');
 
   function main$4 ({ reply }) {
-  	reply('Usage: control [if] ...');
+  	reply('Usage: control [if|cond|each] ...');
   }
 
   var control = /*#__PURE__*/Object.freeze({
     __proto__: null,
     'default': main$4,
-    'if': ifCondition
+    'if': ifCondition,
+    cond: cond,
+    each: each
   });
 
   give.parser = new BashlikeArgumentParser([
@@ -1597,6 +1826,7 @@
   		description: 'Remove the specified roles instead of giving.'
   	}
   ], 'Give or remove roles from a user.');
+  give.auth = ['manage roles'];
 
   async function give ({ msg, args: { roles, target, remove }, env, trace, reply }) {
   	const member$1 = member(msg, target);
@@ -1630,8 +1860,33 @@
   		process.versions.node
   }
 
+  var browser = createCommonjsModule(function (module, exports) {
+
+  // ref: https://github.com/tc39/proposal-global
+  var getGlobal = function () {
+  	// the only reliable means to get the global object is
+  	// `Function('return this')()`
+  	// However, this causes CSP violations in Chrome apps.
+  	if (typeof self !== 'undefined') { return self; }
+  	if (typeof window !== 'undefined') { return window; }
+  	if (typeof global !== 'undefined') { return global; }
+  	throw new Error('unable to locate global object');
+  };
+
+  var global = getGlobal();
+
+  module.exports = exports = global.fetch;
+
+  // Needed for TypeScript and Webpack.
+  exports.default = global.fetch.bind(global);
+
+  exports.Headers = global.Headers;
+  exports.Request = global.Request;
+  exports.Response = global.Response;
+  });
+
   function main$6 ({ reply }) {
-  	reply('Usage: `mcserver [status]`');
+  	reply('Usage: `mcserver [status|webtoon]`');
   }
 
   let mcproto;
@@ -1751,35 +2006,30 @@
   		? 'Fortunately, the bot is running on Node, so this will work.'
   		: 'Unfortunately, the bot is not running on Node, so this command will not work.'));
 
+  async function webtoon ({ args: { url }, reply, trace }) {
+  	const page = await browser(url)
+  		.then(r => r.ok ? r.text() : Promise.reject(new Error(r.status + ' error')));
+  	const match = page.match(/<span class="subj"><span>(.+?)<\/span>(?:(<em class="tx_up">)|<\/span>)/);
+  	if (match) {
+  		await reply(`[${match[1]}](${url})` + (match[2] ? ' **UP**' : ''));
+  	} else {
+  		return { message: 'Couldn\'t find latest episode.', trace }
+  	}
+  }
+  webtoon.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'url',
+  		aliases: ['U'],
+  		validate: 'isString',
+  		description: 'The URL of the Webtoon\'s episode list.'
+  	}
+  ], 'Gets the name of the latest episode of a Webtoon. Please let it not cross your curiosity why this command is in the `mcserver` module.');
+
   var mcserver = /*#__PURE__*/Object.freeze({
     __proto__: null,
     'default': main$6,
-    status: status
-  });
-
-  var browser = createCommonjsModule(function (module, exports) {
-
-  // ref: https://github.com/tc39/proposal-global
-  var getGlobal = function () {
-  	// the only reliable means to get the global object is
-  	// `Function('return this')()`
-  	// However, this causes CSP violations in Chrome apps.
-  	if (typeof self !== 'undefined') { return self; }
-  	if (typeof window !== 'undefined') { return window; }
-  	if (typeof global !== 'undefined') { return global; }
-  	throw new Error('unable to locate global object');
-  };
-
-  var global = getGlobal();
-
-  module.exports = exports = global.fetch;
-
-  // Needed for TypeScript and Webpack.
-  exports.default = global.fetch.bind(global);
-
-  exports.Headers = global.Headers;
-  exports.Request = global.Request;
-  exports.Response = global.Response;
+    status: status,
+    webtoon: webtoon
   });
 
   function fetchDirectory (url, keyName) {
@@ -1796,40 +2046,41 @@
   		})
   }
 
-  function whois ({ args, reply, client, trace }) {
-  	const whois = client.data.get({ args: ['whois'], def: null });
+  function whois ({ args, reply, client, msg, trace }) {
+
+  	const whois = client.data.get({ args: ['whois', msg.guild.id], def: null });
   	if (!whois) {
   		return { message: 'No whois information available. Do \`whois help\` for more information.', trace }
   	}
   	// Maybe should do resolve.member so command only works in the server? idk
-  	const user$1 = user(client, args.user);
-  	if (!user$1) {
+  	const userId = memberId(msg, args.user);
+  	if (!userId) {
   		return { message: `Don't know to whom \`${args.user}\` refers.`, trace }
   	}
-  	if (!whois.hasOwnProperty(user$1.id)) {
-  		return { message: `${user$1} doesn't have an entry in the spreadsheet. (Tip: Have the server managers run \`whois fetch\` yet?)`, trace }
+  	if (!whois.hasOwnProperty(userId)) {
+  		return { message: `<@${userId}> doesn't have an entry in the spreadsheet. (Tip: Have the server managers run \`whois fetch\` yet?)`, trace }
   	}
-  	return reply(`Information about ${user$1}`, {
-  		fields: Object.entries(whois[user$1.id])
+  	return reply(`Information about <@${userId}>`, {
+  		fields: Object.entries(whois[userId])
   			.map(([col, value]) => value ? { name: col, value, inline: true } : null)
   			.filter(identity)
   	})
   }
   whois.parser = new SimpleArgumentParser({
   	user: '<user>'
-  });
+  }, null, 'Example: \`whois "Gamepro5"\`');
 
   function help$2 ({ reply }) {
   	reply(`Use \`whois <user>\` to get information about the given user.\n\nServer managers will have to first link the whois information with a .tsv of URL. Do \`whois fetch -h\` for more information.`);
   }
 
-  async function fetch$1 ({ args, reply, client, trace }) {
+  async function fetch$1 ({ args, reply, client, trace, msg }) {
   	if (args.help) {
   		return reply(fetch$1.parser.toString())
   	}
   	const {
-  		url = client.data.get({ args: ['whois_last_url'], def: null }),
-  		id = client.data.get({ args: ['whois_last_id'], def: null })
+  		url = client.data.get({ args: ['whois_last_url', msg.guild.id], def: null }),
+  		id = client.data.get({ args: ['whois_last_id', msg.guild.id], def: null })
   	} = args;
   	if (!url) {
   		return { message: 'No URL (`-u`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
@@ -1837,10 +2088,10 @@
   	if (!id) {
   		return { message: 'No ID column name (`-i`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
   	}
-  	const whois = await fetchDirectory(args.url, args.id);
-  	client.data.set({ args: ['whois'] }, whois);
-  	client.data.set({ args: ['whois_last_url'] }, url);
-  	client.data.set({ args: ['whois_last_id'] }, id);
+  	const whois = await fetchDirectory(url, id);
+  	client.data.set({ args: ['whois', msg.guild.id] }, whois);
+  	client.data.set({ args: ['whois_last_url', msg.guild.id] }, url);
+  	client.data.set({ args: ['whois_last_id', msg.guild.id] }, id);
   	await client.data.save();
   	return reply(`Fetched! ${Object.keys(whois).length - 1} entries found.`)
   }
@@ -1868,11 +2119,240 @@
   	}
   ], 'Fetches spreadsheet .tsv data from a URL and other information about users. The first row should be the names of each column. Option values are stored after the first call, so you can run `whois fetch` to update the data.\n\nIf fetching from a Google Sheet, you can use the URL `https://docs.google.com/spreadsheets/d/e/<ID>/pub?single=true&output=tsv`.');
 
+  function search ({ args: { column, value, includes, target }, reply, trace, env, client, msg }) {
+  	column = column.toLowerCase();
+  	if (value) {
+  		value = value.toLowerCase();
+  	} else if (includes) {
+  		includes = includes.toLowerCase();
+  	} else {
+  		return { message: 'You must specify either the `value` or `includes` option.', trace }
+  	}
+  	const whois = client.data.get({ args: ['whois', msg.guild.id], def: null });
+  	if (!whois) {
+  		return { message: 'No whois information available. Do \`whois help\` for more information.', trace }
+  	}
+  	const matches = Object.entries(whois)
+  		.map(([id, info]) => {
+  			const key = Object.keys(info).find(key => key.toLowerCase() === column);
+  			if (key) {
+  				const val = info[key].toLowerCase();
+  				return (value ? value === val : val.includes(includes))
+  					? [id, info[key]]
+  					: null
+  			} else {
+  				return null
+  			}
+  		})
+  		.filter(match => match);
+  	if (target) {
+  		env.set(target, matches.map(([id]) => id).join('\n'));
+  	} else {
+  		const str = matches.map(([id, value]) => `<@${id}>: ${value}`).join('\n');
+  		return reply(str.length > 2000 ? str.slice(0, 2000) + `...\n[${matches.length} total]` : str)
+  	}
+  }
+  search.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'column',
+  		aliases: ['C'],
+  		validate: 'isString',
+  		description: 'The column name to search by (for example, `"first name"`).'
+  	},
+  	{
+  		name: 'value',
+  		aliases: ['v', 'is'],
+  		validate: 'isString',
+  		description: 'The value to search for under the column. It\'ll do an exact but case insensitive match.',
+  		optional: true
+  	},
+  	{
+  		name: 'includes',
+  		aliases: ['H', 'has'],
+  		validate: 'isString',
+  		description: 'The value to search for under the column. It\'ll check if the user\'s value includes the given string.',
+  		optional: true
+  	},
+  	{
+  		name: 'target',
+  		aliases: ['>'],
+  		validate: 'isString',
+  		description: 'A variable name to store the user IDs in, separated by newlines. If specified, it suppresses the output.',
+  		optional: true
+  	}
+  ], 'Searches the whois data by the given column name and value. Outputs a list of mentions.\n\nExample: `whois search -C "first name" -v "sean"`');
+
   var whois$1 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     help: help$2,
     fetch: fetch$1,
+    search: search,
     'default': whois
+  });
+
+  async function dm ({ args: { message, recipient }, client, msg }) {
+  	recipient = user(client, recipient);
+  	await recipient.send('', {
+  		embed: {
+  			title: 'You\'ve received a love letter!',
+  			description: message,
+  			footer: {
+  				text: `From ${msg.author.tag}`,
+  				icon_url: msg.author.displayAvatarURL({
+  					format: 'png',
+  					dynamic: true
+  				})
+  			},
+  			timestamp: new Date().toISOString()
+  		}
+  	});
+  }
+  dm.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'message',
+  		aliases: ['m'],
+  		validate: 'isString',
+  		description: 'Message to direct message.'
+  	},
+  	{
+  		name: 'recipient',
+  		aliases: ['@', 't', '2', 'to'],
+  		validate: 'isString',
+  		description: 'The user to whom the message should be sent.'
+  	}
+  ], 'Send a direct message to a user.');
+
+  function executor ({ args: { target }, env, msg }) {
+  	env.set(target, msg.author.toString());
+  }
+  executor.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'target',
+  		aliases: ['>'],
+  		validate: 'isString',
+  		description: 'Variable to store the value in.'
+  	}
+  ], 'Store the @mention of the user running the command in a variable. Example: `user executor -> me`.');
+
+  function compat ({ args: { userA, userB }, msg, reply, trace }) {
+  	userA = memberId(msg, userA);
+  	if (!userA) return { message: `Could not resolve the first person; try mentioning them or giving their ID.`, trace }
+  	userB = memberId(msg, userB);
+  	if (!userB) return { message: `Could not resolve the second person; try mentioning them or giving their ID.`, trace }
+  	reply(`<@${userA}> and <@${userB}> are ${
+		// I can tolerate the loss of precision here from converting snowflakes to
+		// floats
+		(1 / (Math.abs(+userA - +userB) / 2e17 + 1) * 100).toFixed(2)
+	}% compatible!`);
+  }
+  compat.parser = new SimpleArgumentParser({
+  	main: '<userA> <userB>'
+  }, null, 'Determines how compatible two people are with each other.');
+
+  function ship ({ args: { userA, userB }, msg, reply, trace }) {
+  	userA = member(msg, userA);
+  	if (!userA) return { message: `Could not resolve the first person; are they on this server?`, trace }
+  	userB = member(msg, userB);
+  	if (!userB) return { message: `Could not resolve the second person; are they on this server?`, trace }
+  	reply(`${userA} x ${userB} -> 💞 **${
+		// `slice` rounds down
+		userA.displayName.slice(0, userA.displayName.length / 2) +
+			userB.displayName.slice(userB.displayName.length / 2)
+	}**`);
+  }
+  ship.parser = new SimpleArgumentParser({
+  	main: '<userA> <userB>'
+  }, null, 'Generate a portmanteau name for a couple. (This is not a commutative operation.)');
+  function main$7 ({ reply }) {
+  	return reply('`user [` `dm` | `executor` | `compat` | `ship` `]` ...')
+  }
+
+  var user$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    dm: dm,
+    executor: executor,
+    compat: compat,
+    ship: ship,
+    'default': main$7
+  });
+
+  // Asserts authorization and returns an error if authorization fails
+  auth.parser = new SimpleArgumentParser({main:'...'});
+  function auth({Discord, msg, reply, args, trace}){
+  	if (!authorize(Discord, msg, args['...'])){
+  		return {
+  			message: `Insufficient permissions; expected at least one of the following permissions: ${args['...'].join(', ')}.`,
+  			trace
+  		}
+  	}
+  }
+
+  function range ({ args: { value, lowX = null, low = null, highX = null, high = null }, trace }) {
+  	value = +value;
+  	if (lowX !== null && value <= +lowX) return { message: 'Value too low', trace }
+  	if (low !== null && value < +low) return { message: 'Value too low', trace }
+  	if (highX !== null && value >= +highX) return { message: 'Value too high', trace }
+  	if (high !== null && value > +high) return { message: 'Value too high', trace }
+  }
+  range.parser = new BashlikeArgumentParser([
+  	{
+  		name: 'value',
+  		aliases: ['v'],
+  		validate: 'isNumber',
+  		description: 'Value to test'
+  	},
+  	{
+  		name: 'lowX',
+  		aliases: ['l'],
+  		validate: 'isNumber',
+  		description: 'Lower bound (exclusive)',
+  		optional: true
+  	},
+  	{
+  		name: 'low',
+  		aliases: ['L'],
+  		validate: 'isNumber',
+  		description: 'Lower bound (inclusive)',
+  		optional: true
+  	},
+  	{
+  		name: 'highX',
+  		aliases: ['h'],
+  		validate: 'isNumber',
+  		description: 'Upper bound (exclusive)',
+  		optional: true
+  	},
+  	{
+  		name: 'high',
+  		aliases: ['H'],
+  		validate: 'isNumber',
+  		description: 'Upper bound (inclusive)',
+  		optional: true
+  	}
+  ], 'Returns an error if the given value is not within the specified range.');
+
+  async function ok ({ run, args: { command, var: varName }, env }) {
+  	const err = await run(command);
+  	if (varName) {
+  		// Empty strings are considered false
+  		env.set(varName, err ? '' : 'ok');
+  	}
+  }
+  ok.parser = new SimpleArgumentParser({
+  	store: 'store <command> in <var> # Attempts to run the command and sets the variable to an empty string if there\'s an error (otherwise "ok").',
+  	try: 'try <command> # Runs the command and ignores any errors'
+  });
+
+  function main$8 ({ reply }) {
+  	return reply('assert [auth|range|ok] ...')
+  }
+
+  var assert = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    auth: auth,
+    range: range,
+    ok: ok,
+    'default': main$8
   });
 
   /*
@@ -1893,14 +2373,16 @@
     control: control,
     role: role$1,
     mcserver: mcserver,
-    whois: whois$1
+    whois: whois$1,
+    user: user$1,
+    assert: assert
   });
 
   /*
   * @Author: UnsignedByte
   * @Date:   11:56:39, 25-May-2020
   * @Last Modified by:   UnsignedByte
-  * @Last Modified time: 23:29:31, 03-Jun-2020
+  * @Last Modified time: 11:54:06, 29-Aug-2020
   */
 
   async function dataManager(name='data'){
@@ -1917,10 +2399,10 @@
   	async init(){
   		if (isNode()) {
   			//if using node
-  			const url = new URL(`../../data/${this.loc}.json`, (document.currentScript && document.currentScript.src || new URL('main.js', document.baseURI).href));
+  			const dataPath = `./data/${this.loc}.json`; // Relative to working directory (!)
   			// const { promises: fs } = require('fs')
   			const { promises: fs } = await Promise.resolve().then(function () { return _empty_module$1; });
-  			this.raw = JSON.parse(await fs.readFile(url, 'utf8').catch(err => {
+  			this.raw = JSON.parse(await fs.readFile(dataPath, 'utf8').catch(err => {
   					// If the file doesn't exist, return null like what localStorage does
   					if (err.code === 'ENOENT') {
   						return null
@@ -1928,7 +2410,7 @@
   						return Promise.reject(err)
   					}
   				}))||{};
-  			this.save = async ()=>await fs.writeFile(url, JSON.stringify(this.raw));
+  			this.save = async ()=>await fs.writeFile(dataPath, JSON.stringify(this.raw, null, '\t'));
   		} else {
   			//if not
   			const url = `[HarVM] ${this.loc}`;
@@ -1975,20 +2457,20 @@
   	 * @param {*} value - The value to set at the given location.
   	 */
   	// Shallow clone the `args` array because it is modified using .pop.
-  	set({def, args: [...args]}, value){
+  	set({args: [...args]}, value){
   		const lastArg = args.pop();
-  		this.get({args})[lastArg] = value;
+  		this.get({ def:{}, args })[lastArg] = value;
   	}
   }
 
-  async function main$7 (token, Discord) {
+  async function main$9 (token, Discord) {
   	const { Client } = Discord;
 
   	// Create an instance of a Discord client
   	const client = new Client();
 
   	client.data = await dataManager();
-  	client.commands = Object.keys(commands$1);
+  	client.commands = commands$1;
 
   	const aliases = new Map(client.data.get({args:['aliases'],def:[]}));
   	const aliasUtil = {
@@ -2008,11 +2490,15 @@
   	// TODO: We can make this fancier by making a standard embed response thing
   	function reply (msg, message, {
   		error = false,
-  		fields = []
+  		fields = [],
+  		title = 'Hi,'
   	} = {}) {
   		return msg.channel.send('', {
   			embed: {
-  				title: 'Hi,',
+  				title,
+  				description: message,
+  				fields,
+  				color: error ? 0xff0000 : null, // TODO: Better colours lol
   				footer: {
   					text: `Requested by ${msg.author.tag}`,
   					icon_url: msg.author.displayAvatarURL({
@@ -2020,10 +2506,7 @@
   						dynamic: true
   					})
   				},
-  				color: error ? 0xff0000 : null, // TODO: Better colours lol
-  				timestamp: new Date().toISOString(),
-  				description: message,
-  				fields
+  				timestamp: new Date().toISOString()
   			}
   		})
   	}
@@ -2033,11 +2516,19 @@
   		context.calls++;
   		// We can check if the user has gone over their call limit here
   		const { msg } = context;
+  		if (!command) {
+  			return {
+  				message: 'Tip: do \`help commands\` for a list of commands.',
+  				trace: ['@empty', ...context.trace],
+  				prefixIgnore: true
+  			}
+  		}
   		const match = command.match(commandParser);
   		if (!match) {
   			return {
-  				message: `Invalid syntax; command names may only contain letters, numbers, and underscores.`,
-  				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace]
+  				message: 'Invalid syntax; command names may only contain letters, numbers, and underscores.',
+  				trace: [command.length > 20 ? command.slice(0, 15) + '...' : command, ...context.trace],
+  				prefixIgnore: true
   			}
   		}
   		const [matched, rawCommandName, subCommandName] = match;
@@ -2073,6 +2564,14 @@
   		} else {
   			return {
   				message: `Unknown command \`${commandName}\`. Do \`help commands\` for a list of commands.`,
+  				trace: [`@unknown/${commandName}`, ...context.trace],
+  				prefixIgnore: true
+  			}
+  		}
+  		if (commandFn.auth) {
+  			let authorized = authorize(Discord, msg, commandFn.auth);
+  			if (!authorized) return {
+  				message: `Insufficient Permissions to Run Command. The following permissions are required for authorization:\n\`${commandFn.auth.join('`\n`')}\``,
   				trace: context.trace
   			}
   		}
@@ -2086,19 +2585,18 @@
   				if (!parser) parser = commandFn.parser||new Parser();
   				return parser.parse(unparsedArgs, context.env)
   			},
-  			get auth() {
-  				let authorized = authorize(Discord, msg, commandFn.auth);
-  				if (!authorized) throw new Error(`Insufficient Permissions to Run Command. The following permissions are required for authorization:\n\`${commandFn.auth.join('`\n`')}\``)
-  			},
   			msg,
   			env: context.env,
-  			reply: (...args) => reply(msg, ...args),
+  			reply: (...args) => {
+  				// return reply(msg, ...args)
+  				context.output.push(args);
+  			},
   			aliasUtil,
   			trace: context.trace,
   			// Is this a good idea? lol
   			run: command => {
   				// Clone `trace` lol
-  				const { trace, ...otherContext } = context;
+  				const { trace, prefixIgnore: _, ...otherContext } = context;
   				return runCommand(command, { trace: [...trace], ...otherContext })
   			}
   		};
@@ -2125,19 +2623,27 @@
 
   	function removePrefix (message) {
   		const prefix = client.data.get({args:['prefix']});
-  		if (message.startsWith(prefix)) return message.slice(prefix.length)
+  		if (message.startsWith(prefix)) {
+  			return {
+  				command: message.slice(prefix.length),
+  				directMention: false
+  			}
+  		}
   		const match = message.match(new RegExp(`^<@!?${client.user.id}>`));
   		if (match) {
-  			return message.slice(match[0].length)
+  			return {
+  				command: message.slice(match[0].length),
+  				directMention: true
+  			}
   		}
-  		return null
+  		return { command: null, directMention: false }
   	}
 
   	client.on('message', async msg => {
   		if (!msg.author.bot) {
-  			const command = removePrefix(msg.content);
+  			const { command, directMention } = removePrefix(msg.content);
   			if (command !== null) {
-  				const error = await runCommand(command, {
+  				const context = {
   					msg,
   					// `env` is for storing variables in case we want to do that
   					// in the future, lol
@@ -2148,8 +2654,10 @@
   					// people for how many commands they run to discourage complex
   					// computations
   					calls: 0,
-  					trace: []
-  				})
+  					trace: [],
+  					output: []
+  				};
+  				const error = await runCommand(command, context)
   					.catch(err => {
   						const id = Math.random().toString(36).slice(2);
   						console.log(id, err);
@@ -2183,16 +2691,42 @@
   							);
   						}
   					} else if (error.trace) {
-  						reply(
+  						// Only send a direct non prefixIgnore error if bot is directly
+  						// mentioned (#22)
+  						if (!error.prefixIgnore || directMention || error.trace.length > 1) {
+  							reply(
+  								msg,
+  								[
+  									'A problem occurred:',
+  									error.message,
+  									'',
+  									'**Trace**',
+  									error.trace.join('\n') || '[Top level]'
+  								].join('\n'),
+  								{ error: true }
+  							);
+  						}
+  					}
+  				} else {
+  					if (context.output.length === 0) {
+  						await msg.react('👌');
+  					} else if (context.output.length === 1) {
+  						await reply(msg, ...context.output[0]);
+  					} else {
+  						await reply(
   							msg,
-  							[
-  								'A problem occurred:',
-  								error.message,
-  								'',
-  								'**Trace**',
-  								error.trace.join('\n') || '[Top level]'
-  							].join('\n'),
-  							{ error: true }
+  							context.output
+  								.map(([output, options = {}]) => {
+  									return (options.title ? `**${options.title}**` : '') +
+  										output +
+  										(options.fields || [])
+  											.map(({ name, value }) => `\n**${name}**\n${value}`)
+  											.join('')
+  								})
+  								.join('\n\n'),
+  							{
+  								title: `Output of ${context.output.length} commands`
+  							}
   						);
   					}
   				}
@@ -2252,7 +2786,7 @@
   		autofocus: true,
   		onclick: () => {
   			empty(document.body);
-  			main$7(tokenInput.value, Discord).catch(err => {
+  			main$9(tokenInput.value, Discord).catch(err => {
   				console.error(err);
   				document.body.appendChild(Elem('p', {}, ['There was a problem. Check the console?']));
   			});

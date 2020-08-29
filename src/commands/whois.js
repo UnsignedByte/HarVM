@@ -4,7 +4,8 @@ import { fetchDirectory } from '../utils/directory.js'
 import identity from '../utils/identity.js'
 
 function whois ({ args, reply, client, msg, trace }) {
-	const whois = client.data.get({ args: ['whois'], def: null })
+
+	const whois = client.data.get({ args: ['whois', msg.guild.id], def: null })
 	if (!whois) {
 		return { message: 'No whois information available. Do \`whois help\` for more information.', trace }
 	}
@@ -30,13 +31,13 @@ function help ({ reply }) {
 	reply(`Use \`whois <user>\` to get information about the given user.\n\nServer managers will have to first link the whois information with a .tsv of URL. Do \`whois fetch -h\` for more information.`)
 }
 
-async function fetch ({ args, reply, client, trace }) {
+async function fetch ({ args, reply, client, trace, msg }) {
 	if (args.help) {
 		return reply(fetch.parser.toString())
 	}
 	const {
-		url = client.data.get({ args: ['whois_last_url'], def: null }),
-		id = client.data.get({ args: ['whois_last_id'], def: null })
+		url = client.data.get({ args: ['whois_last_url', msg.guild.id], def: null }),
+		id = client.data.get({ args: ['whois_last_id', msg.guild.id], def: null })
 	} = args
 	if (!url) {
 		return { message: 'No URL (`-u`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
@@ -45,9 +46,9 @@ async function fetch ({ args, reply, client, trace }) {
 		return { message: 'No ID column name (`-i`) given, nor has it been given before. (Do `whois fetch -h` for more info.)', trace }
 	}
 	const whois = await fetchDirectory(url, id)
-	client.data.set({ args: ['whois'] }, whois)
-	client.data.set({ args: ['whois_last_url'] }, url)
-	client.data.set({ args: ['whois_last_id'] }, id)
+	client.data.set({ args: ['whois', msg.guild.id] }, whois)
+	client.data.set({ args: ['whois_last_url', msg.guild.id] }, url)
+	client.data.set({ args: ['whois_last_id', msg.guild.id] }, id)
 	await client.data.save()
 	return reply(`Fetched! ${Object.keys(whois).length - 1} entries found.`)
 }
@@ -75,7 +76,7 @@ fetch.parser = new BashlikeArgumentParser([
 	}
 ], 'Fetches spreadsheet .tsv data from a URL and other information about users. The first row should be the names of each column. Option values are stored after the first call, so you can run `whois fetch` to update the data.\n\nIf fetching from a Google Sheet, you can use the URL `https://docs.google.com/spreadsheets/d/e/<ID>/pub?single=true&output=tsv`.')
 
-function search ({ args: { column, value, includes, target }, reply, trace, env, client }) {
+function search ({ args: { column, value, includes, target }, reply, trace, env, client, msg }) {
 	column = column.toLowerCase()
 	if (value) {
 		value = value.toLowerCase()
@@ -84,7 +85,7 @@ function search ({ args: { column, value, includes, target }, reply, trace, env,
 	} else {
 		return { message: 'You must specify either the `value` or `includes` option.', trace }
 	}
-	const whois = client.data.get({ args: ['whois'], def: null })
+	const whois = client.data.get({ args: ['whois', msg.guild.id], def: null })
 	if (!whois) {
 		return { message: 'No whois information available. Do \`whois help\` for more information.', trace }
 	}
